@@ -2,10 +2,11 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { devLoginEnabled, getUserId } from "@/lib/session";
 import { xConfigured } from "@/lib/x";
+import { oauth1Configured } from "@/lib/x-oauth1";
 
 const ERRORS: Record<string, string> = {
   login: "Não foi possível entrar com o X. Tente de novo.",
-  "x-nao-configurado": "Login com X ainda não configurado (faltam X_CLIENT_ID / X_CLIENT_SECRET).",
+  "x-nao-configurado": "Login com X ainda não configurado (faltam X_API_KEY / X_API_SECRET).",
 };
 
 export default function Home({ searchParams }: PageProps<"/">) {
@@ -41,7 +42,7 @@ async function Actions({ searchParams }: { searchParams: PageProps<"/">["searchP
     <div className="mt-8">
       {erro && <p className="mb-4 rounded-xl bg-muted p-3 text-sm">{erro}</p>}
       <div className="flex flex-wrap gap-3">
-        {xConfigured() && (
+        {(oauth1Configured() || xConfigured()) && (
           <a href={loginHref} className="rounded-full bg-fg px-6 py-3 font-semibold text-bg">
             Entrar com X
           </a>
