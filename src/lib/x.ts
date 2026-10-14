@@ -62,32 +62,58 @@ export async function getMe(token: string): Promise<XUser> {
   return ((await res.json()) as { data: XUser }).data;
 }
 
-/** Paid (pay-per-use): pulls up to X_FETCH_MAX following + followers and stores edges/profiles. */
+/** Paid (pay-per-use): crawls up to X_FETCH_MAX following + followers and stores edges/profiles. */
 export async function importFollowsFromApi(client: Client, token: string, uid: string) {
-  const max = Number(process.env.X_FETCH_MAX ?? 100);
+  const configuredMax = Number(process.env.X_FETCH_MAX ?? 100);
+  const max = Number.isFinite(configuredMax) ? Math.max(0, Math.floor(configuredMax)) : 100;
+  const configuredPageSize = Number(process.env.X_FETCH_PAGE_SIZE ?? 1000);
+  const pageSize = Number.isFinite(configuredPageSize)
+    ? Math.min(Math.max(1, Math.floor(configuredPageSize)), 1000)
+    : 1000;
+  const totals: Record<"following" | "followers", number> = { following: 0, followers: 0 };
+
   for (const kind of ["following", "followers"] as const) {
-    const res = await fetch(
-      `${X_API}/users/${uid}/${kind}?max_results=${Math.min(max, 1000)}&user.fields=profile_image_url`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!res.ok) {
-      console.warn(`X ${kind} fetch failed`, res.status, await res.text());
-      continue;
+    let paginationToken: string | undefined;
+    while (totals[kind] < max) {
+      const params = new URLSearchParams({
+        max_results: String(Math.min(pageSize, max - totals[kind])),
+        "user.fields": "profile_image_url",
+      });
+      if (paginationToken) params.set("pagination_token", paginationToken);
+
+      const res = await fetch(`${X_API}/users/${uid}/${kind}?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        console.warn(`X ${kind} fetch failed`, res.status, await res.text());
+        break;
+      }
+
+      const body = (await res.json()) as {
+        data?: XUser[];
+        meta?: { next_token?: string };
+      };
+      const users = body.data ?? [];
+      if (users.length) {
+        await client.batch(
+          users.flatMap((u) => [
+            {
+              sql: "INSERT OR IGNORE INTO edges (src, dst) VALUES (?, ?)",
+              args: kind === "following" ? [uid, u.id] : [u.id, uid],
+            },
+            {
+              sql: `INSERT INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar`,
+              args: [u.id, u.username, u.name, u.profile_image_url ?? null],
+            },
+          ]),
+          "write",
+        );
+      }
+      totals[kind] += users.length;
+      paginationToken = body.meta?.next_token;
+      if (!paginationToken || users.length === 0) break;
     }
-    const users = ((await res.json()) as { data?: XUser[] }).data ?? [];
-    await client.batch(
-      users.flatMap((u) => [
-        {
-          sql: "INSERT OR IGNORE INTO edges (src, dst) VALUES (?, ?)",
-          args: kind === "following" ? [uid, u.id] : [u.id, uid],
-        },
-        {
-          sql: `INSERT INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar`,
-          args: [u.id, u.username, u.name, u.profile_image_url ?? null],
-        },
-      ]),
-      "write",
-    );
   }
+  return totals;
 }
