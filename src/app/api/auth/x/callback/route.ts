@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   );
   const code = params.get("code");
   if (!oauth || !code || params.get("state") !== oauth.state) {
+    console.error("[auth] login failed: bad state/code", params.get("error") ?? "");
     return NextResponse.redirect(`${origin}/?erro=login`);
   }
   try {
@@ -25,12 +26,13 @@ export async function GET(req: NextRequest) {
       args: [me.id, me.username, me.name, me.profile_image_url ?? null, ref, Date.now()],
     });
     if (fetchFollowsEnabled()) await importFollowsFromApi(client, access_token, me.id);
+    console.log(`[auth] login ok @${me.username}`);
     const res = NextResponse.redirect(`${origin}/app`);
     res.cookies.set(sessionCookie.name, await createSessionToken(me.id), sessionCookie.options);
     res.cookies.delete("xe_oauth");
     return res;
   } catch (e) {
-    console.error(e);
+    console.error("[auth] login failed", e);
     return NextResponse.redirect(`${origin}/?erro=login`);
   }
 }

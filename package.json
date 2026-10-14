@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "./scripts/with-secrets.sh next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "./scripts/with-secrets.sh next start",
+    "lint": "eslint",
+    "secrets:set": "./scripts/secret-set.sh",
+    "secrets:list": "security dump-keychain | grep -A1 '\"svce\"<blob>=\"x-eleicoes\"' | grep acct | cut -d'\"' -f4"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
