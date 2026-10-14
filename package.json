@@ -8,7 +8,8 @@
     "start": "./scripts/with-secrets.sh next start",
     "lint": "eslint",
     "secrets:set": "./scripts/secret-set.sh",
-    "secrets:list": "security dump-keychain | grep -A1 '\"svce\"<blob>=\"x-eleicoes\"' | grep acct | cut -d'\"' -f4"
+    "secrets:list": "./scripts/secret-list.sh",
+    "dev:prod-db": "USE_PROD_DB=1 ./scripts/with-secrets.sh next dev"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
