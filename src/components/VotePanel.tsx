@@ -18,7 +18,7 @@ export function VotePanel({ me }: { me: Me }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function save(next: Vote | null, vis = visibility) {
+  function save(next: Vote, vis = visibility) {
     setError(null);
     start(async () => {
       const res = await fetch("/api/vote", {
@@ -59,7 +59,7 @@ export function VotePanel({ me }: { me: Me }) {
           <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>
             Entendo que opinião política é dado pessoal sensível (LGPD) e autorizo guardar meu voto e mostrá-lo
-            conforme a visibilidade escolhida abaixo. Posso apagar a qualquer momento.
+            conforme a visibilidade escolhida abaixo. Posso trocar o voto ou excluir meus dados a qualquer momento.
           </span>
         </label>
       )}
@@ -79,11 +79,16 @@ export function VotePanel({ me }: { me: Me }) {
           ))}
         </div>
       </fieldset>
-      {vote && (
-        <button disabled={pending} onClick={() => save(null)} className="mt-3 text-sm text-subtle underline">
-          Apagar meu voto
-        </button>
-      )}
+      <form
+        action="/api/account"
+        method="post"
+        className="mt-3"
+        onSubmit={(e) => {
+          if (!confirm("Excluir sua conta, seu voto e sua rede importada? Não dá pra desfazer.")) e.preventDefault();
+        }}
+      >
+        <button className="text-sm text-subtle underline">Excluir minha conta e meus dados</button>
+      </form>
       {error && <p className="mt-2 text-sm text-[var(--lula)]">{error}</p>}
     </div>
   );

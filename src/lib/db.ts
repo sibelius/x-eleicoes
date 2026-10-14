@@ -2,7 +2,12 @@ import "server-only";
 import { createClient, type Client } from "@libsql/client";
 
 // Local dev: a SQLite file. Production: a free Turso database (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN).
-const url = process.env.TURSO_DATABASE_URL ?? "file:local.db";
+// On Vercel without Turso, /tmp is the only writable path — data there is EPHEMERAL (lost on cold starts).
+const url =
+  process.env.TURSO_DATABASE_URL ?? (process.env.VERCEL ? "file:/tmp/local.db" : "file:local.db");
+if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) {
+  console.warn("TURSO_DATABASE_URL not set: using ephemeral /tmp database.");
+}
 
 const globalForDb = globalThis as unknown as { db?: Client; migrated?: Promise<void> };
 

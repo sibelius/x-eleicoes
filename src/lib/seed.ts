@@ -19,7 +19,7 @@ export async function ensureDevSeed() {
   const now = Date.now();
   const stmts: { sql: string; args: (string | number | null)[] }[] = [
     {
-      sql: "INSERT INTO users (id, username, name, avatar, created_at) VALUES (?, ?, ?, NULL, ?)",
+      sql: "INSERT OR IGNORE INTO users (id, username, name, avatar, created_at) VALUES (?, ?, ?, NULL, ?)",
       args: [DEV_UID, "voce_dev", "Você (dev)", now],
     },
   ];
@@ -31,21 +31,21 @@ export async function ensureDevSeed() {
     const vis = rand() < 0.15 ? "private" : rand() < 0.3 ? "public" : "network";
     const id = `seed_${i}`;
     stmts.push({
-      sql: `INSERT INTO users (id, username, name, avatar, vote, visibility, voted_at, invited_by, created_at)
+      sql: `INSERT OR IGNORE INTO users (id, username, name, avatar, vote, visibility, voted_at, invited_by, created_at)
             VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
       args: [id, `${first.toLowerCase().normalize("NFD").replace(/[^a-z]/g, "")}${i}`, name, vote, vis, vote ? now : null, i < 4 ? DEV_UID : null, now],
     });
     const rel = rand();
-    if (rel < 0.75) stmts.push({ sql: "INSERT INTO edges VALUES (?, ?)", args: [DEV_UID, id] });
-    if (rel > 0.35) stmts.push({ sql: "INSERT INTO edges VALUES (?, ?)", args: [id, DEV_UID] });
+    if (rel < 0.75) stmts.push({ sql: "INSERT OR IGNORE INTO edges VALUES (?, ?)", args: [DEV_UID, id] });
+    if (rel > 0.35) stmts.push({ sql: "INSERT OR IGNORE INTO edges VALUES (?, ?)", args: [id, DEV_UID] });
   }
   // Accounts from the "archive" that have not joined yet — some with known profiles.
   for (let i = 0; i < 140; i++) {
     const id = String(1_000_000 + i);
-    stmts.push({ sql: "INSERT INTO edges VALUES (?, ?)", args: rand() < 0.6 ? [DEV_UID, id] : [id, DEV_UID] });
+    stmts.push({ sql: "INSERT OR IGNORE INTO edges VALUES (?, ?)", args: rand() < 0.6 ? [DEV_UID, id] : [id, DEV_UID] });
     if (i < 30) {
       stmts.push({
-        sql: "INSERT INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, NULL)",
+        sql: "INSERT OR IGNORE INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, NULL)",
         args: [id, `amigo_${i}`, `Amigo ${i}`],
       });
     }
