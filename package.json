@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "@zip.js/zip.js": "2.18.2",
     "d3-force": "^3.0.0",
     "jose": "^6.2.12",
     "next": "16.4.1",

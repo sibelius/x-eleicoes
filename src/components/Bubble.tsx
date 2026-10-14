@@ -14,7 +14,6 @@ function color(n: NetworkNode | null, me: Me) {
   const vote = n ? n.vote : me.vote;
   if (vote === "lula") return "var(--lula)";
   if (vote === "bolsonaro") return "var(--bolso)";
-  if (n?.voted) return "var(--secret)";
   return "var(--none)";
 }
 
@@ -96,7 +95,6 @@ export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[];
       <div className="mb-2 flex flex-wrap gap-4 text-xs text-subtle">
         <Legend c="var(--lula)" label="Lula" />
         <Legend c="var(--bolso)" label="Bolsonaro" />
-        <Legend c="var(--secret)" label="Votou (voto privado)" />
         <Legend c="var(--none)" label="Ainda não votou" />
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
@@ -165,9 +163,7 @@ function NodeCard({ n, me, shareBase, onClose }: { n: NetworkNode; me: Me; share
     ? "Ainda não entrou no app"
     : n.vote
       ? `Vota ${n.vote === "lula" ? "Lula" : "Bolsonaro"}`
-      : n.voted
-        ? "Votou (voto privado)"
-        : "Entrou mas ainda não votou";
+      : "Entrou mas ainda não votou";
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-3">
       <div>

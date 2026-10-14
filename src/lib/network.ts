@@ -2,7 +2,6 @@ import "server-only";
 import { db } from "./db";
 
 export type Vote = "lula" | "bolsonaro";
-export type Visibility = "public" | "network" | "private";
 
 export type Me = {
   id: string;
@@ -10,7 +9,6 @@ export type Me = {
   name: string;
   avatar: string | null;
   vote: Vote | null;
-  visibility: Visibility;
 };
 
 export type NetworkNode = {
@@ -19,7 +17,6 @@ export type NetworkNode = {
   name: string | null;
   avatar: string | null;
   member: boolean;
-  /** Only set when the member allows people in their network to see it. */
   vote: Vote | null;
   voted: boolean;
   following: boolean; // I follow them
@@ -28,15 +25,12 @@ export type NetworkNode = {
   strength: number;
 };
 
-export type Tally = { lula: number; bolsonaro: number; total: number; hidden: boolean };
-
-/** Private votes only enter aggregates once there are enough of them to not identify anyone. */
-export const PRIVACY_MIN_VOTES = 5;
+export type Tally = { lula: number; bolsonaro: number; total: number };
 
 export async function getMe(uid: string): Promise<Me | null> {
   const client = await db();
   const r = await client.execute({
-    sql: "SELECT id, username, name, avatar, vote, visibility FROM users WHERE id = ?",
+    sql: "SELECT id, username, name, avatar, vote FROM users WHERE id = ?",
     args: [uid],
   });
   const row = r.rows[0];
@@ -47,7 +41,6 @@ export async function getMe(uid: string): Promise<Me | null> {
     name: String(row.name),
     avatar: (row.avatar as string | null) ?? null,
     vote: (row.vote as Vote | null) ?? null,
-    visibility: row.visibility as Visibility,
   };
 }
 
@@ -58,7 +51,6 @@ type Row = {
   name: string | null;
   avatar: string | null;
   vote: Vote | null;
-  visibility: Visibility | null;
   following: number;
   follower: number;
   invite: number;
@@ -82,7 +74,7 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
         COALESCE(u.username, p.username) AS username,
         COALESCE(u.name, p.name) AS name,
         COALESCE(u.avatar, p.avatar) AS avatar,
-        u.vote AS vote, u.visibility AS visibility
+        u.vote AS vote
       FROM agg
       LEFT JOIN users u ON u.id = agg.id
       LEFT JOIN profiles p ON p.id = agg.id
@@ -95,24 +87,15 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
   return rows.filter((row) => row.member || nonMembers++ < nonMemberLimit);
 }
 
-function tally(rows: Row[], visible: (r: Row) => boolean): Tally {
+function tally(rows: Row[]): Tally {
   const voters = rows.filter((r) => r.member && r.vote);
-  const shown = voters.filter(visible);
-  const useAll = voters.length >= PRIVACY_MIN_VOTES;
-  const counted = useAll ? voters : shown;
-  const lula = counted.filter((r) => r.vote === "lula").length;
-  return {
-    lula,
-    bolsonaro: counted.length - lula,
-    total: counted.length,
-    hidden: !useAll && voters.length > shown.length,
-  };
+  const lula = voters.filter((r) => r.vote === "lula").length;
+  return { lula, bolsonaro: voters.length - lula, total: voters.length };
 }
 
 export async function getNetwork(uid: string) {
   const rows = await networkRows(uid, 250);
   const nodes: NetworkNode[] = rows.map((r) => {
-    const visible = r.member && r.vote && r.visibility !== "private";
     const mutual = r.following && r.follower;
     return {
       id: r.id,
@@ -120,7 +103,7 @@ export async function getNetwork(uid: string) {
       name: r.name,
       avatar: r.avatar,
       member: Boolean(r.member),
-      vote: visible ? r.vote : null,
+      vote: r.member ? r.vote : null,
       voted: Boolean(r.member && r.vote),
       following: Boolean(r.following),
       follower: Boolean(r.follower),
@@ -138,21 +121,20 @@ export async function getNetwork(uid: string) {
   const c = counts.rows[0] as unknown as { following: number; followers: number };
   return {
     nodes,
-    tally: tally(rows, (r) => r.visibility !== "private"),
+    tally: tally(rows),
     counts: { following: Number(c.following), followers: Number(c.followers) },
   };
 }
 
-/** What anyone can see on a shared link: only aggregates + the owner's vote if public. */
+/** What anyone can see on a shared link: the owner's vote + their network's totals. */
 export async function getShare(uid: string) {
   const me = await getMe(uid);
   if (!me) return null;
   const rows = await networkRows(uid, 0);
-  const t = tally(rows, (r) => r.visibility !== "private");
   return {
     user: { id: me.id, username: me.username, name: me.name, avatar: me.avatar },
-    vote: me.visibility === "public" ? me.vote : null,
-    tally: t,
+    vote: me.vote,
+    tally: tally(rows),
     members: rows.length,
   };
 }

@@ -25,8 +25,8 @@ export default function Home({ searchParams }: PageProps<"/">) {
         <Actions searchParams={searchParams} />
       </Suspense>
       <p className="mt-10 text-xs text-subtle">
-        Enquete informal entre usuários, sem valor estatístico — não é pesquisa eleitoral. Você escolhe quem vê seu
-        voto e pode excluir seus dados quando quiser.
+        Enquete informal entre usuários, sem valor estatístico — não é pesquisa eleitoral. Os votos são públicos e
+        aparecem com o @ de quem votou. Você pode excluir seus dados quando quiser.
       </p>
     </main>
   );

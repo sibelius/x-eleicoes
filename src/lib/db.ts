@@ -22,7 +22,7 @@ const SCHEMA = [
     name TEXT NOT NULL,
     avatar TEXT,
     vote TEXT CHECK (vote IN ('lula','bolsonaro')),
-    visibility TEXT NOT NULL DEFAULT 'network' CHECK (visibility IN ('public','network','private')),
+    visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public','network','private')),
     voted_at INTEGER,
     invited_by TEXT,
     created_at INTEGER NOT NULL

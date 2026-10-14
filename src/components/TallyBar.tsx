@@ -16,7 +16,6 @@ export function TallyBar({ tally }: { tally: Tally }) {
       </div>
       <div className="mt-1 text-xs text-subtle">
         {tally.total} {tally.total === 1 ? "voto" : "votos"} na rede
-        {tally.hidden && " · alguns votos privados ficam de fora até a rede ter 5+ votos"}
       </div>
     </div>
   );
