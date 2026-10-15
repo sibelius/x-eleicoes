@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export default function ComparePage({ params }: PageProps<"/c/[a]/[b]">) {
       <Link href="/r" className="text-sm text-subtle underline">
         Todas as bolhas
       </Link>
-      <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
+      <Suspense fallback={<PageSkeleton list={0} />}>
         <Compare params={params} />
       </Suspense>
     </main>

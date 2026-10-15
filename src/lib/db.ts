@@ -83,6 +83,11 @@ const SCHEMA = [
     uid TEXT PRIMARY KEY,
     at INTEGER NOT NULL
   )`,
+  // Last "someone in your network voted" push per voter, so flipping sides can't spam their network.
+  `CREATE TABLE IF NOT EXISTS vote_pushes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
 ];
 
 export async function db(): Promise<Client> {

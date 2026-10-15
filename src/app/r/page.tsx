@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
@@ -29,6 +30,9 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
         <Link href="/ranking" className="rounded-full bg-fg px-4 py-2 text-bg">
           🏆 Ranking das bolhas
         </Link>
+        <Link href="/mapa" className="rounded-full border border-line px-4 py-2">
+          🗺️ Mapa com todas as contas
+        </Link>
         <Link href="/c" className="rounded-full border border-line px-4 py-2">
           Comparar bolhas
         </Link>
@@ -36,7 +40,7 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
       <div className="mt-4">
         <SupportStrip placement="directory" />
       </div>
-      <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <Members searchParams={searchParams} />
       </Suspense>
     </main>

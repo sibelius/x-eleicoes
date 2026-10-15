@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: PageProps<"/r/[handle]">): Pr
 export default function SharePage({ params }: PageProps<"/r/[handle]">) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-16">
-      <Suspense fallback={<p className="text-subtle">Carregando…</p>}>
+      <Suspense fallback={<PageSkeleton list={0} />}>
         <Share params={params} />
       </Suspense>
     </main>

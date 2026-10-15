@@ -1,4 +1,4 @@
-// Web push: "someone from your network joined".
+// Web push: "someone from your network joined / voted", bubble views, daily summary.
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(

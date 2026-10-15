@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageSkeleton } from "@/components/Skeleton";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -21,7 +22,7 @@ export default function ComparePicker({ searchParams }: PageProps<"/c">) {
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Comparar bolhas</h1>
       <p className="mt-1 text-subtle">Duas pessoas, duas redes: qual é mais Vermelho? E mais Verde?</p>
-      <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
+      <Suspense fallback={<PageSkeleton bubble={false} />}>
         <Picker searchParams={searchParams} />
       </Suspense>
     </main>

@@ -76,3 +76,24 @@ body {
   .bubble-pop, .bubble-pulse { animation: none; }
   .bubble-node, .bubble-zoom { transition: none; }
 }
+
+/* Loading placeholders: a soft light band sweeping across a muted block. */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--muted);
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card) 70%, transparent), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after { animation: none; }
+}

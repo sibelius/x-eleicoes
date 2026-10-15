@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ListSkeleton } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -23,7 +24,7 @@ export default function RankingPage() {
       <div className="mt-4">
         <SupportStrip placement="ranking" />
       </div>
-      <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
+      <Suspense fallback={<div className="mt-6"><ListSkeleton rows={10} /></div>}>
         <Boards />
       </Suspense>
     </main>

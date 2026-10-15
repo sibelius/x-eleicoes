@@ -1,7 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
-import { pct } from "./links";
+import { SIDE, pct, sharePath } from "./links";
 import { getShare } from "./network";
 
 export function pushPublicKey() {
@@ -72,6 +72,43 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
     title: "Alguém da sua rede entrou",
     body: `@${newcomer.username} entrou na Minha Bolha. Veja como sua bolha mudou.`,
     url,
+  });
+}
+
+/** Tell the voter's network (follows, followed by, invite link) which side they picked. At most one per voter every 30 minutes. */
+export async function notifyNetworkVoted(voter: string, vote: "red" | "green", origin: string) {
+  if (!ready()) return 0;
+  const client = await db();
+  const now = Date.now();
+  const claim = await client.execute({
+    sql: `INSERT INTO vote_pushes (uid, at) VALUES (?, ?)
+          ON CONFLICT(uid) DO UPDATE SET at = excluded.at WHERE vote_pushes.at < ?`,
+    args: [voter, now, now - 30 * 60 * 1000],
+  });
+  if (!claim.rowsAffected) return 0;
+  const [who, subs] = await client.batch(
+    [
+      { sql: "SELECT username FROM users WHERE id = ?", args: [voter] },
+      {
+        sql: `WITH rel AS (
+                SELECT src AS id FROM edges WHERE dst = :uid
+                UNION SELECT dst FROM edges WHERE src = :uid
+                UNION SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL
+                UNION SELECT id FROM users WHERE invited_by = :uid
+              )
+              SELECT s.endpoint, s.p256dh, s.auth FROM push_subs s
+              JOIN rel ON rel.id = s.uid WHERE s.uid <> :uid`,
+        args: { uid: voter },
+      },
+    ],
+    "read",
+  );
+  const username = who.rows[0]?.username as string | undefined;
+  if (!username) return 0;
+  return send(subs.rows, {
+    title: vote === "red" ? "Alguém da sua rede votou 🔴" : "Alguém da sua rede votou 🟢",
+    body: `@${username} escolheu o ${SIDE[vote]}. Veja como sua bolha mudou.`,
+    url: `${origin}${sharePath(username)}`,
   });
 }
 

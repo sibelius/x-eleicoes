@@ -88,7 +88,7 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
   return (
     <section className="rounded-2xl border border-line bg-card p-4">
       <h2 className="text-lg font-semibold">Avisos</h2>
-      <p className="mt-1 text-sm text-subtle">Receba uma notificação quando alguém da sua rede entrar.</p>
+      <p className="mt-1 text-sm text-subtle">Receba uma notificação quando alguém da sua rede entrar ou votar.</p>
       {state === "unsupported" ? (
         <p className="mt-3 text-sm text-subtle">
           Este navegador não aceita notificações. No iPhone, adicione o site à Tela de Início primeiro.

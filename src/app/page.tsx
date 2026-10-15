@@ -1,4 +1,5 @@
 import { SupportStrip } from "@/components/SupportStrip";
+import { Shimmer } from "@/components/Skeleton";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { devLoginEnabled, getUserId } from "@/lib/session";
@@ -23,7 +24,10 @@ export default function Home({ searchParams }: PageProps<"/">) {
         <b className="text-[var(--green)]">Verde</b> e veja a bolha de quem você segue e quem te segue. Chame
         seus amigos pra escolher um lado e compartilhe o resultado da sua rede.
       </p>
-      <Suspense fallback={<div className="mt-8 h-12" />}>
+      <Suspense fallback={<div className="mt-8 flex gap-2">
+            <Shimmer className="h-12 w-56 rounded-full" />
+            <Shimmer className="h-12 w-32 rounded-full" />
+          </div>}>
         <Actions searchParams={searchParams} />
       </Suspense>
       <Link href="/r" className="mt-6 self-start text-sm underline">

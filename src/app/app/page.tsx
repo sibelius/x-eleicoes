@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageSkeleton, Shimmer } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
 import { redirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
@@ -20,7 +21,10 @@ import Link from "next/link";
 
 export default function AppPage() {
   return (
-    <Suspense fallback={<p className="p-8 text-subtle">Carregando sua rede…</p>}>
+    <Suspense fallback={<div className="mx-auto w-full max-w-3xl px-4 py-10">
+          <Shimmer className="h-8 w-1/2" />
+          <PageSkeleton />
+        </div>}>
       <Dashboard />
     </Suspense>
   );
