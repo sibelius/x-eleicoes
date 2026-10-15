@@ -8,7 +8,8 @@ import { VotePanel } from "@/components/VotePanel";
 import { VoteModal } from "@/components/VoteModal";
 import { BADGE_STEPS, inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
 import { viewCount } from "@/lib/views";
-import { getMe, getNetwork, inviteCount } from "@/lib/network";
+import { getMe, getNetwork, getTimeline, inviteCount } from "@/lib/network";
+import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pushPublicKey } from "@/lib/push";
 import { appUrl, getUserId } from "@/lib/session";
@@ -32,7 +33,7 @@ async function Dashboard() {
   const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const [views, invites] = await Promise.all([viewCount(me.id), inviteCount(me.id)]);
+  const [views, invites, timeline] = await Promise.all([viewCount(me.id), inviteCount(me.id), getTimeline(me.id)]);
   const nextBadge = BADGE_STEPS.find((n) => n > invites);
 
   return (
@@ -99,6 +100,9 @@ async function Dashboard() {
           </section>
           <div className="order-3 min-w-0 lg:order-none">
             <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} />
+          </div>
+          <div className="order-3 min-w-0 lg:order-none">
+            <Timeline {...timeline} />
           </div>
         </div>
 

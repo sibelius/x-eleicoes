@@ -4,7 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
 import { sharePath, shareTweetUrl } from "@/lib/links";
-import { getNetwork, getShare, inviteCount, resolveUser } from "@/lib/network";
+import { getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
+import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
 import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
@@ -44,7 +45,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
-  const [views, invites] = await Promise.all([viewCount(user.id), inviteCount(user.id)]);
+  const [views, invites, timeline] = await Promise.all([viewCount(user.id), inviteCount(user.id), getTimeline(user.id)]);
   return (
     <>
       <div className="flex items-center gap-3">
@@ -108,6 +109,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           />
         </div>
       )}
+      <div className="mt-4">
+        <Timeline {...timeline} />
+      </div>
     </>
   );
 }

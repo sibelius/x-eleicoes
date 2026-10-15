@@ -330,3 +330,56 @@ export async function getComparison(a: string, b: string) {
     sharedMembers: shared.filter((n) => n.member).slice(0, 24),
   };
 }
+
+export type TimelinePoint = { day: string; lula: number; bolsonaro: number; members: number };
+export type TimelineEvent = { at: number; kind: "joined" | "voted"; username: string; avatar: string | null; vote: Vote | null };
+
+/**
+ * How a bubble grew: per day, cumulative members and votes among the people in it
+ * (rebuilt from join and vote times, so it covers history from day one; the latest vote counts).
+ */
+export async function getTimeline(uid: string) {
+  const client = await db();
+  const r = await client.execute({
+    sql: `WITH rel AS (
+            SELECT dst AS id FROM edges WHERE src = :uid
+            UNION SELECT src FROM edges WHERE dst = :uid
+            UNION SELECT id FROM users WHERE invited_by = :uid
+            UNION SELECT invited_by FROM users WHERE id = :uid
+          )
+          SELECT u.username, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.created_at, u.voted_at
+          FROM rel JOIN users u ON u.id = rel.id LEFT JOIN profiles p ON p.id = u.id
+          WHERE u.id <> :uid AND u.id GLOB '[0-9]*'`,
+    args: { uid },
+  });
+  const rows = r.rows.map((x) => ({
+    username: String(x.username),
+    avatar: (x.avatar as string | null) ?? null,
+    vote: (x.vote as Vote | null) ?? null,
+    joined: Number(x.created_at),
+    voted: x.voted_at == null ? null : Number(x.voted_at),
+  }));
+  const day = (t: number) => new Date(t - 3 * 3600_000).toISOString().slice(0, 10); // Brasília
+  const days = new Set<string>();
+  for (const x of rows) {
+    days.add(day(x.joined));
+    if (x.voted) days.add(day(x.voted));
+  }
+  const points: TimelinePoint[] = [...days].sort().map((d) => {
+    const end = (t: number) => day(t) <= d;
+    return {
+      day: d,
+      members: rows.filter((x) => end(x.joined)).length,
+      lula: rows.filter((x) => x.vote === "lula" && x.voted && end(x.voted)).length,
+      bolsonaro: rows.filter((x) => x.vote === "bolsonaro" && x.voted && end(x.voted)).length,
+    };
+  });
+  const events: TimelineEvent[] = rows
+    .flatMap((x) => [
+      { at: x.joined, kind: "joined" as const, username: x.username, avatar: x.avatar, vote: null },
+      ...(x.voted ? [{ at: x.voted, kind: "voted" as const, username: x.username, avatar: x.avatar, vote: x.vote }] : []),
+    ])
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 30);
+  return { points, events };
+}
