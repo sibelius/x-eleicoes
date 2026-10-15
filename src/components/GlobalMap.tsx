@@ -33,20 +33,25 @@ function hash(s: string) {
   return ((h >>> 0) % 1000) / 1000;
 }
 
-/** Hex cells inside a disc, enough for n points, ordered left to right. */
+/**
+ * The n hex cells nearest the center (a full, round disc), ordered left to right like a globe's
+ * meridians: by how far across its own row a cell sits, so the red/green bands curve with the ball.
+ */
 function hexDisc(n: number) {
-  let R = D * Math.sqrt(n / (Math.PI * 0.866)) * 1.02;
-  for (;;) {
-    const cells: [number, number][] = [];
-    const dy = D * 0.866;
-    for (let row = -Math.ceil(R / dy); row <= Math.ceil(R / dy); row++) {
-      const y = row * dy;
-      const off = row & 1 ? D / 2 : 0;
-      for (let x = -Math.ceil(R / D) * D + off; x <= R; x += D) if (x * x + y * y <= R * R) cells.push([x, y]);
-    }
-    if (cells.length >= n) return { cells: cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]), R };
-    R *= 1.02;
+  // A hex cell covers D² · 0.866, so a disc of n cells has R = D · √(0.866 n / π); pad a little and trim.
+  const pad = D * Math.sqrt((n * 0.866) / Math.PI) + D * 2;
+  const dy = D * 0.866;
+  const cells: [number, number][] = [];
+  for (let row = -Math.ceil(pad / dy); row <= Math.ceil(pad / dy); row++) {
+    const y = row * dy;
+    const off = row & 1 ? D / 2 : 0;
+    for (let x = -Math.ceil(pad / D) * D + off; x <= pad; x += D) cells.push([x, y]);
   }
+  const d2 = (c: [number, number]) => c[0] * c[0] + c[1] * c[1];
+  const disc = cells.sort((a, b) => d2(a) - d2(b)).slice(0, n);
+  const R = Math.sqrt(d2(disc[disc.length - 1] ?? [0, 0])) + D / 2;
+  const across = (c: [number, number]) => c[0] / Math.sqrt(Math.max(R * R - c[1] * c[1], D * D));
+  return { cells: disc.sort((a, b) => across(a) - across(b) || a[1] - b[1]), R };
 }
 
 function mix(lean: number, member: number) {
@@ -130,6 +135,17 @@ export function GlobalMap({
       const { k, x, y } = view.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
+      // A faint halo behind the disc, so it reads as one bubble.
+      const bx = x;
+      const by = y;
+      const bR = (layout.R + D) * k;
+      const halo = ctx.createRadialGradient(bx, by, bR * 0.9, bx, by, bR * 1.12);
+      halo.addColorStop(0, "rgba(255,255,255,0.10)");
+      halo.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(bx, by, bR * 1.12, 0, Math.PI * 2);
+      ctx.fill();
       let started = 0;
       for (const i of layout.draw) {
         const sx = layout.px[i] * k + x;
@@ -178,6 +194,19 @@ export function GlobalMap({
           ctx.stroke();
         }
       }
+      // Bubble sheen over the dots: a glint up-left, darker toward the rim, and a thin bright edge.
+      const shade = ctx.createRadialGradient(bx - bR * 0.35, by - bR * 0.4, bR * 0.05, bx, by, bR);
+      shade.addColorStop(0, "rgba(255,255,255,0.22)");
+      shade.addColorStop(0.35, "rgba(255,255,255,0.04)");
+      shade.addColorStop(0.8, "rgba(0,0,0,0)");
+      shade.addColorStop(1, "rgba(0,0,0,0.28)");
+      ctx.fillStyle = shade;
+      ctx.beginPath();
+      ctx.arc(bx, by, bR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, bR * 0.006);
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.stroke();
     });
   }, [layout, data]);
 
