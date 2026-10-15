@@ -9,6 +9,8 @@ import { libsqlDb, mirrored, pgDb, type Db } from "./sql";
 //   DB_MIRROR  = "1"                         writes are also copied to the other database
 // Turso: TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (local dev: the local.db file).
 // Postgres (Supabase): DATABASE_URL, the transaction pooler (port 6543).
+// Production runs on Supabase (DB_PRIMARY=pg) since 2026-10-15; Turso keeps the data as of the switch.
+// To move again: DB_MIRROR=1, `pnpm db:copy`, `pnpm db:verify`, flip DB_PRIMARY, redeploy.
 
 export type { Db } from "./sql";
 

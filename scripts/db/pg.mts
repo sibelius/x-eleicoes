@@ -31,3 +31,6 @@ export function supabase() {
   });
   return { db, end: () => sql.end({ timeout: 5 }) };
 }
+
+/** Old Turso column names (from before the red/green rename) → the schema's names. */
+export const RENAMES: Record<string, Record<string, string>> = { tally_snapshots: { lula: "red", bolsonaro: "green" } };
