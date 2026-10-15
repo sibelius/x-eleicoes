@@ -64,7 +64,10 @@ export function Bubble({
     const x1 = Math.max(...layout.map((d) => d.x! + d.r)) + pad;
     const y0 = Math.min(...layout.map((d) => d.y! - d.r)) - pad - 28;
     const y1 = Math.max(...layout.map((d) => d.y! + d.r)) + pad;
-    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    // Don't blow a handful of dots up to fill the card: keep at least ~half the layout space in view.
+    const w = Math.max(x1 - x0, space.w * 0.6);
+    const h = Math.max(y1 - y0, space.h * 0.45);
+    return { x: (x0 + x1 - w) / 2, y: (y0 + y1 - h) / 2, w, h };
   }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
   const router = useRouter();
@@ -111,7 +114,7 @@ export function Bubble({
         forceX<SimNode>((d) => targetX(d.n, w)).strength((d) => (d.n?.vote ? 0.12 : 0.05)),
       )
       .force("y", forceY<SimNode>(h / 2).strength(w < h ? 0.03 : 0.07))
-      .force("collide", forceCollide<SimNode>((d) => d.r + 2).iterations(3))
+      .force("collide", forceCollide<SimNode>((d) => d.r + (d.n ? 2 : 10)).iterations(3))
       .stop()
       .tick(320);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- layout is computed client-side to avoid hydration mismatch
@@ -163,6 +166,11 @@ export function Bubble({
         onClick={(e) => e.target === e.currentTarget && setSelected(null)}
       >
         <defs>
+          {me?.avatar && (
+            <pattern id="av-me" width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image href={me.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+          )}
           {layout?.map((d) =>
             d.n?.avatar ? (
               <pattern key={d.n.id} id={`av-${d.n.id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
@@ -185,7 +193,9 @@ export function Bubble({
         <g className="bubble-zoom" style={{ transform: zoom }}>
           {layout?.map((d) => {
             const n = d.n;
-            const fill = n?.avatar ? `url(#av-${n.id})` : color(n, me);
+            const avatar = n ? n.avatar : me?.avatar;
+          const ring = color(n, me);
+          const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
             // Ripple: dots pop in outward from the middle.
             const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
             return (
@@ -193,25 +203,28 @@ export function Bubble({
                 key={n?.id ?? "me"}
                 style={{
                   transform: `translate(${d.x}px, ${d.y}px)`,
-                  opacity: focused && focused !== d ? 0.3 : 1,
+                  opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
                 }}
                 onClick={() => n && pick(n)}
                 className={`bubble-node ${n ? "cursor-pointer" : ""}`}
               >
                 <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
-                  {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={color(n, me)} strokeWidth={3} />}
+                  {/* The owner: a halo and a pulsing ring around their photo. */}
+                  {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
+                  {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
+                  {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
                   <circle
-                    r={d.r}
-                    fill={fill}
-                    fillOpacity={n && !n.member ? 0.45 : 1}
-                    stroke={n?.avatar || !n ? color(n, me) : "var(--card)"}
-                    strokeWidth={n?.avatar || !n ? 3 : 1}
+                    r={d.r - sw / 2}
+                    fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
+                    stroke={ring}
+                    strokeWidth={sw}
                   />
-                  {(n?.member || !n) && !n?.avatar && d.r > 11 && (
+                  {!avatar && d.r > 9 && (
                     <text
                       textAnchor="middle"
                       dy="0.35em"
-                      className="pointer-events-none fill-white text-[10px] font-bold"
+                      className="pointer-events-none fill-[var(--fg)] font-bold"
+                      style={{ fontSize: Math.min(14, d.r * 0.6) }}
                     >
                       {n ? initials(n.name) : centerLabel}
                     </text>
@@ -223,6 +236,11 @@ export function Bubble({
           })}
         </g>
       </svg>
+      {visible.length === 0 && (
+        <p className="-mt-6 mb-4 text-center text-sm text-subtle">
+          {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
+        </p>
+      )}
       <p className="mt-1 text-xs text-subtle">
         Toque em alguém para dar zoom
         {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.

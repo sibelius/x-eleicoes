@@ -14,13 +14,13 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
   const t = share?.tally ?? { lula: 0, bolsonaro: 0, total: 0 };
   const l = pct(t.lula, t.total);
   const b = t.total ? 100 - l : 0;
-  const art = share ? await networkArt({ id, vote: share.vote }, (await getNetwork(id)).nodes) : [];
+  const art = share ? await networkArt({ id, vote: share.vote, avatar: share.user.avatar }, (await getNetwork(id)).nodes) : [];
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", background: OG.bg, color: OG.fg }}>
         <div style={{ display: "flex", flexDirection: "column", width: 500, paddingLeft: 64, paddingRight: 24 }}>
           <div style={{ fontSize: 34, color: OG.subtle }}>{`Como a rede de @${share?.user.username ?? "?"} vota`}</div>
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, fontSize: 60, fontWeight: 800, lineHeight: 1.15 }}>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, fontSize: 54, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap" }}>
             <span style={{ color: OG.lula }}>{`Lula ${l}%`}</span>
             <span style={{ color: OG.bolso }}>{`Bolsonaro ${b}%`}</span>
           </div>

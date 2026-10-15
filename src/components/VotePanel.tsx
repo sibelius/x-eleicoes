@@ -57,16 +57,6 @@ export function VotePanel({ me }: { me: Me }) {
           </span>
         </label>
       )}
-      <form
-        action="/api/account"
-        method="post"
-        className="mt-3"
-        onSubmit={(e) => {
-          if (!confirm("Excluir sua conta, seu voto e sua rede importada? Não dá pra desfazer.")) e.preventDefault();
-        }}
-      >
-        <button className="text-sm text-subtle underline">Excluir minha conta e meus dados</button>
-      </form>
       {error && <p className="mt-2 text-sm text-[var(--lula)]">{error}</p>}
     </div>
   );

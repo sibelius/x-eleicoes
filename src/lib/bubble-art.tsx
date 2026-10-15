@@ -13,10 +13,19 @@ export const OG = {
   none: "#5d5d64",
 };
 
-export type ArtNode = { id: string; vote: Vote | null; r: number; avatar?: string | null; me?: boolean; dim?: boolean };
+export type ArtNode = {
+  id: string;
+  vote: Vote | null;
+  r: number;
+  avatar?: string | null;
+  me?: boolean;
+  dim?: boolean;
+  /** Filled dot instead of an empty ring (the illustrative bubble has no photos). */
+  solid?: boolean;
+};
 type Sim = SimulationNodeDatum & ArtNode;
 
-function fill(d: ArtNode) {
+function ringColor(d: ArtNode) {
   if (d.vote === "lula") return OG.lula;
   if (d.vote === "bolsonaro") return OG.bolso;
   return d.me ? OG.fg : OG.none;
@@ -47,7 +56,8 @@ export function BubbleArt({ nodes, width, height }: { nodes: ArtNode[]; width: n
   return (
     <div style={{ position: "relative", display: "flex", width, height }}>
       {layout(nodes, width, height).map((d) => {
-        const ring = d.avatar ? Math.max(2, d.r * 0.12) : 0;
+        // Photo inside a ring in the vote's color, like the in-app bubble; the owner also gets a halo.
+        const ring = d.me ? 5 : Math.max(1.5, d.r * 0.16);
         return (
           <div
             key={d.id}
@@ -58,16 +68,19 @@ export function BubbleArt({ nodes, width, height }: { nodes: ArtNode[]; width: n
               top: d.y - d.r,
               width: d.r * 2,
               height: d.r * 2,
-              padding: ring,
+              padding: d.avatar ? ring : 0,
               borderRadius: "50%",
-              background: fill(d),
-              opacity: d.dim ? 0.7 : 1,
+              background: d.avatar || d.solid ? ringColor(d) : OG.muted,
+              // Satori chokes on undefined style values, so only set these when present.
+              ...(d.avatar || d.solid ? {} : { border: `${ring}px solid ${ringColor(d)}` }),
+              ...(d.me ? { boxShadow: "0 0 0 9px rgba(242, 242, 240, 0.18)" } : {}),
+              opacity: d.dim ? 0.75 : 1,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            {d.me && (
-              <span style={{ color: d.vote ? "#fff" : OG.bg, fontSize: d.r * 0.42, fontWeight: 800 }}>VOCÊ</span>
+            {d.me && !d.avatar && (
+              <span style={{ color: OG.fg, fontSize: d.r * 0.42, fontWeight: 800 }}>VOCÊ</span>
             )}
             {d.avatar && (
               // eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img>
@@ -100,14 +113,14 @@ export async function inlineAvatar(url: string | null | undefined, size = "_bigg
 }
 
 /** The user's real bubble, like the in-app one: avatar in every dot, "VOCÊ" in the middle. */
-export async function networkArt(me: { id: string; vote: Vote | null }, nodes: NetworkNode[]) {
+export async function networkArt(me: { id: string; vote: Vote | null; avatar: string | null }, nodes: NetworkNode[]) {
   const others = await Promise.all(
     nodes.slice(0, 160).map(async (n): Promise<ArtNode> => {
       const r = n.member ? 12 + n.strength * 3 : 3 + n.strength * 1.5;
       return { id: n.id, vote: n.vote, r, dim: !n.member, avatar: await inlineAvatar(n.avatar, r > 12 ? "_200x200" : "_bigger") };
     }),
   );
-  return [{ id: me.id, vote: me.vote, r: 34, me: true }, ...others];
+  return [{ id: me.id, vote: me.vote, r: 34, me: true, avatar: await inlineAvatar(me.avatar, "_200x200") }, ...others];
 }
 
 /** A made-up but deterministic network for the site-wide card. */
@@ -119,7 +132,12 @@ export function demoArt(): ArtNode[] {
     const p = rand();
     const vote: Vote | null = p < 0.42 ? "lula" : p < 0.8 ? "bolsonaro" : null;
     const member = rand() < 0.22;
-    nodes.push({ id: `n${i}`, vote: member ? vote : rand() < 0.35 ? vote : null, r: member ? 12 + rand() * 12 : 3 + rand() * 5 });
+    nodes.push({
+      id: `n${i}`,
+      vote: member ? vote : rand() < 0.35 ? vote : null,
+      r: member ? 12 + rand() * 12 : 3 + rand() * 5,
+      solid: true,
+    });
   }
   return nodes;
 }

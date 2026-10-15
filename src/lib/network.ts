@@ -32,7 +32,8 @@ export type Tally = { lula: number; bolsonaro: number; total: number };
 export async function getMe(uid: string): Promise<Me | null> {
   const client = await db();
   const r = await client.execute({
-    sql: "SELECT id, username, name, avatar, vote FROM users WHERE id = ?",
+    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+          FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id = ?`,
     args: [uid],
   });
   const row = r.rows[0];
@@ -63,8 +64,8 @@ export async function resolveUser(handle: string): Promise<{ id: string; usernam
 export async function listMembers(q = ""): Promise<Me[]> {
   const client = await db();
   const r = await client.execute({
-    sql: `SELECT u.id, u.username, u.name, u.avatar, u.vote
-          FROM users u
+    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+          FROM users u LEFT JOIN profiles p ON p.id = u.id
           WHERE u.id GLOB '[0-9]*' AND (:q = '' OR u.username LIKE :like OR u.name LIKE :like)
           ORDER BY u.created_at DESC
           LIMIT 500`,
@@ -183,7 +184,8 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
   });
   const [members, others] = await client.batch(
     [
-      "SELECT id, username, name, avatar, vote FROM users WHERE id GLOB '[0-9]*'",
+      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
       {
         sql: `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
               links AS (
