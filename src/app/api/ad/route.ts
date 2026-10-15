@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       events.map((e) => ({
         sql: `INSERT INTO ad_stats (ad, placement, visitor, day, views, clicks) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT (ad, placement, visitor, day) DO UPDATE SET
-                views = views + excluded.views, clicks = clicks + excluded.clicks`,
+                views = ad_stats.views + excluded.views, clicks = ad_stats.clicks + excluded.clicks`,
         args: [e.ad, e.placement, visitor, day, e.kind === "view" ? 1 : 0, e.kind === "click" ? 1 : 0],
       })),
       "write",

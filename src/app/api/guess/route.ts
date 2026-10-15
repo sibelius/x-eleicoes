@@ -28,9 +28,9 @@ export async function POST(req: NextRequest) {
       },
       {
         sql: `SELECT COUNT(*) AS n, AVG(guess) AS avg,
-                SUM(CASE WHEN ABS(guess - ?) < ABS(? - ?) THEN 1 ELSE 0 END) AS better
+                SUM(CASE WHEN ABS(guess - ?) < ? THEN 1 ELSE 0 END) AS better
               FROM guesses WHERE bubble = ? AND visitor <> ?`,
-        args: [actual, guess, actual, bubble, visitor],
+        args: [actual, Math.abs(guess - actual), bubble, visitor],
       },
     ],
     "write",
