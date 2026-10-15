@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type State = "loading" | "unsupported" | "denied" | "off" | "on";
+
+const ASKED = "xe_push_asked";
+function asked() {
+  try {
+    return localStorage.getItem(ASKED) === "1";
+  } catch {
+    return false;
+  }
+}
+function markAsked() {
+  try {
+    localStorage.setItem(ASKED, "1");
+  } catch {}
+}
 
 function key(b64: string) {
   const s = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
@@ -11,6 +25,7 @@ function key(b64: string) {
 
 export function PushToggle({ publicKey }: { publicKey: string }) {
   const [state, setState] = useState<State>("loading");
+  const enableRef = useRef(() => {});
 
   useEffect(() => {
     async function check(): Promise<State> {
@@ -21,7 +36,18 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
     }
     check()
       .catch((): State => "unsupported")
-      .then(setState);
+      .then((st) => {
+        setState(st);
+        // First visit: ask right away instead of waiting for the button. Some browsers only show the
+        // prompt after a user gesture, so also try on the first tap/click. The button stays as fallback.
+        if (st !== "off" || Notification.permission !== "default" || asked()) return;
+        markAsked();
+        enableRef.current();
+        const onGesture = () => {
+          if (Notification.permission === "default") enableRef.current();
+        };
+        window.addEventListener("pointerdown", onGesture, { once: true });
+      });
   }, []);
 
   async function enable() {
@@ -40,6 +66,10 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
       setState(Notification.permission === "denied" ? "denied" : "off");
     }
   }
+
+  useEffect(() => {
+    enableRef.current = () => void enable();
+  });
 
   async function disable() {
     setState("loading");
