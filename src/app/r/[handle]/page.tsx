@@ -64,6 +64,22 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         </div>
       </div>
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Como a rede de @{share.user.username} vota</h1>
+      {!share.member && (
+        <p className="mt-2 text-sm text-subtle">
+          @{share.user.username} ainda não entrou no app: esta bolha é montada com quem já entrou e segue ou é seguido
+          por @{share.user.username}.{" "}
+          <a
+            className="underline"
+            target="_blank"
+            rel="noreferrer"
+            href={`https://x.com/intent/post?text=${encodeURIComponent(
+              `@${share.user.username} já vimos como a sua rede vota. Falta só o seu voto: Lula ou Bolsonaro? 🗳️`,
+            )}&url=${encodeURIComponent(`${appUrl()}${sharePath(share.user.username)}`)}`}
+          >
+            Chamar @{share.user.username} no X
+          </a>
+        </p>
+      )}
       {share.vote && (
         <p className="mt-2 text-subtle">
           @{share.user.username} vota{" "}

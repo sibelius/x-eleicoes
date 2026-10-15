@@ -53,8 +53,10 @@ export async function getMe(uid: string): Promise<Me | null> {
 export async function resolveUser(handle: string): Promise<{ id: string; username: string } | null> {
   const client = await db();
   const r = await client.execute({
+    // Members first; then any known X profile (famous accounts get a bubble built from members' links).
     sql: `SELECT id, username FROM users WHERE id = :h
           UNION ALL SELECT id, username FROM users WHERE username = :h COLLATE NOCASE
+          UNION ALL SELECT id, username FROM profiles WHERE username IS NOT NULL AND (id = :h OR username = :h COLLATE NOCASE)
           LIMIT 1`,
     args: { h: handle.replace(/^@/, "") },
   });
@@ -304,12 +306,14 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
 
 /** What anyone can see on a shared link: the owner's vote + their network's totals. */
 export async function getShare(uid: string) {
-  const me = await getMe(uid);
+  const me = (await getMe(uid)) ?? (await getProfile(uid));
   if (!me) return null;
   const rows = await networkRows(uid, 0);
   return {
     user: { id: me.id, username: me.username, name: me.name, avatar: me.avatar },
     vote: me.vote,
+    /** False for a known X account that hasn't joined (e.g. a famous profile). */
+    member: !("profile" in me),
     tally: tally(rows),
     members: rows.length,
   };
@@ -431,4 +435,54 @@ export async function getBubbleSize(uid: string | null): Promise<BubbleSize> {
       vote: null,
     })),
   };
+}
+
+/** A known X account that isn't a member (seen in someone's follow lists). */
+async function getProfile(id: string) {
+  const client = await db();
+  const r = await client.execute({
+    sql: "SELECT id, username, name, avatar FROM profiles WHERE id = ? AND username IS NOT NULL",
+    args: [id],
+  });
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    name: String(row.name ?? row.username),
+    avatar: (row.avatar as string | null) ?? null,
+    vote: null,
+    profile: true as const,
+  };
+}
+
+export type Famous = { id: string; username: string; name: string; avatar: string | null; followers: number; tally: Tally };
+
+/** Accounts that haven't joined but that the most members follow, with how those followers vote. */
+export async function getFamous(limit = 24): Promise<Famous[]> {
+  const client = await db();
+  const r = await client.execute({
+    sql: `SELECT p.id, p.username, p.name, p.avatar, COUNT(*) AS followers,
+            SUM(u.vote = 'lula') AS lula, SUM(u.vote = 'bolsonaro') AS bolso
+          FROM edges e
+          JOIN users u ON u.id = e.src AND u.id GLOB '[0-9]*'
+          JOIN profiles p ON p.id = e.dst AND p.username IS NOT NULL
+          WHERE NOT EXISTS (SELECT 1 FROM users m WHERE m.id = e.dst)
+          GROUP BY p.id
+          ORDER BY followers DESC
+          LIMIT ?`,
+    args: [limit],
+  });
+  return r.rows.map((row) => {
+    const lula = Number(row.lula);
+    const bolsonaro = Number(row.bolso);
+    return {
+      id: String(row.id),
+      username: String(row.username),
+      name: String(row.name ?? row.username),
+      avatar: (row.avatar as string | null) ?? null,
+      followers: Number(row.followers),
+      tally: { lula, bolsonaro, total: lula + bolsonaro },
+    };
+  });
 }

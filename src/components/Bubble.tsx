@@ -452,12 +452,12 @@ function NodeCard({
             Pedir pra votar
           </a>
         )}
-        {n.member && n.username && (
+        {n.username && (
           <Link className="rounded-full bg-fg px-3 py-1.5 text-bg" href={sharePath(n.username)}>
             Ver bolha
           </Link>
         )}
-        {n.member && n.username && (
+        {n.username && (
           <Link
             className="rounded-full border border-line px-3 py-1.5"
             // Your dashboard: you × them. Someone else's page: the viewer's own bubble × them.

@@ -4,7 +4,7 @@ import { TallyBar } from "@/components/TallyBar";
 import { InviteBadge } from "@/components/InviteBadge";
 import { sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
-import { getBubbleSize, getGlobalNetwork, listMembers } from "@/lib/network";
+import { getBubbleSize, getFamous, getGlobalNetwork, listMembers } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
@@ -45,7 +45,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
   const members = await listMembers(q);
   const lula = members.filter((m) => m.vote === "lula").length;
   const bolsonaro = members.filter((m) => m.vote === "bolsonaro").length;
-  const [visitors, size] = await Promise.all([viewCount(SITE), q ? null : getBubbleSize(null)]);
+  const [visitors, size, famous] = await Promise.all([viewCount(SITE), q ? null : getBubbleSize(null), q ? [] : getFamous()]);
   return (
     <>
       {!q && (
@@ -71,6 +71,41 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
             <div className="mt-4">
               <BubbleSize size={size} />
             </div>
+          )}
+          {famous.length > 0 && (
+            <section className="mt-4 rounded-2xl border border-line bg-card p-4">
+              <h2 className="text-lg font-semibold">⭐ Bolhas dos famosos</h2>
+              <p className="mt-1 text-sm text-subtle">
+                Contas que ainda não entraram, montadas com quem as segue no app. Compare com a sua.
+              </p>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {famous.map((f) => {
+                  const l = f.tally.total ? Math.round((f.tally.lula / f.tally.total) * 100) : null;
+                  return (
+                    <li key={f.id} className="flex items-center gap-2 rounded-xl bg-muted p-2">
+                      <a href={sharePath(f.username)} className="flex min-w-0 flex-1 items-center gap-2">
+                        {f.avatar ? <img src={f.avatar} alt="" className="h-9 w-9 rounded-full" /> : <span className="h-9 w-9 rounded-full bg-card" />}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold">@{f.username}</span>
+                          <span className="block text-xs text-subtle">
+                            {f.followers} seguidores no app
+                            {l !== null && (
+                              <>
+                                {" · "}
+                                <b style={{ color: "var(--lula)" }}>{l}%</b> × <b style={{ color: "var(--bolso)" }}>{100 - l}%</b>
+                              </>
+                            )}
+                          </span>
+                        </span>
+                      </a>
+                      <a href={`/c?b=${encodeURIComponent(f.username)}`} className="shrink-0 rounded-full border border-line px-3 py-1 text-xs">
+                        Comparar
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           )}
         </>
       )}
