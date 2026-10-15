@@ -9,9 +9,13 @@ export function inviteTweetUrl(base: string, uid: string, username?: string | nu
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(inviteLink(base, uid))}`;
 }
 
-export function shareTweetUrl(base: string, uid: string, lulaPct: number, bolsoPct: number) {
+export function sharePath(username: string) {
+  return `/r/${encodeURIComponent(username)}`;
+}
+
+export function shareTweetUrl(base: string, username: string, lulaPct: number, bolsoPct: number) {
   const text = `Minha rede no X: ${lulaPct}% Lula × ${bolsoPct}% Bolsonaro. E a sua?`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}/r/${uid}`)}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${sharePath(username)}`)}`;
 }
 
 export function profileUrl(n: { id: string; username: string | null }) {

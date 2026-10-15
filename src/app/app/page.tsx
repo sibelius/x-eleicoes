@@ -4,7 +4,7 @@ import { Bubble } from "@/components/Bubble";
 import { ImportArchive } from "@/components/ImportArchive";
 import { TallyBar } from "@/components/TallyBar";
 import { VotePanel } from "@/components/VotePanel";
-import { inviteLink, inviteTweetUrl, pct, shareTweetUrl } from "@/lib/links";
+import { inviteLink, inviteTweetUrl, pct, sharePath, shareTweetUrl } from "@/lib/links";
 import { getMe, getNetwork } from "@/lib/network";
 import { appUrl, getUserId } from "@/lib/session";
 
@@ -49,13 +49,13 @@ async function Dashboard() {
             <div className="mt-4 flex flex-wrap gap-2 text-sm">
               <a
                 className="rounded-full bg-fg px-4 py-2 text-bg"
-                href={shareTweetUrl(base, me.id, l, tally.total ? 100 - l : 0)}
+                href={shareTweetUrl(base, me.username, l, tally.total ? 100 - l : 0)}
                 target="_blank"
                 rel="noreferrer"
               >
                 Compartilhar no X
               </a>
-              <a className="rounded-full border border-line px-4 py-2" href={`/r/${me.id}`} target="_blank">
+              <a className="rounded-full border border-line px-4 py-2" href={sharePath(me.username)} target="_blank">
                 Ver página pública
               </a>
             </div>

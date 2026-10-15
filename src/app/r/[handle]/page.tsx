@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { getShare } from "@/lib/network";
+import { sharePath } from "@/lib/links";
+import { getNetwork, getShare, resolveUser } from "@/lib/network";
+import { appUrl } from "@/lib/session";
 
-export async function generateMetadata({ params }: PageProps<"/r/[id]">): Promise<Metadata> {
-  const { id } = await params;
-  const share = await getShare(id);
+async function load(params: PageProps<"/r/[handle]">["params"]) {
+  const handle = decodeURIComponent((await params).handle);
+  const user = await resolveUser(handle);
+  return user ? { handle, user, share: await getShare(user.id) } : null;
+}
+
+export async function generateMetadata({ params }: PageProps<"/r/[handle]">): Promise<Metadata> {
+  const share = (await load(params))?.share;
   if (!share) return {};
   return {
     title: `Como a rede de @${share.user.username} vota`,
@@ -14,9 +22,9 @@ export async function generateMetadata({ params }: PageProps<"/r/[id]">): Promis
   };
 }
 
-export default function SharePage({ params }: PageProps<"/r/[id]">) {
+export default function SharePage({ params }: PageProps<"/r/[handle]">) {
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-16">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-16">
       <Suspense fallback={<p className="text-subtle">Carregando…</p>}>
         <Share params={params} />
       </Suspense>
@@ -24,10 +32,14 @@ export default function SharePage({ params }: PageProps<"/r/[id]">) {
   );
 }
 
-async function Share({ params }: { params: PageProps<"/r/[id]">["params"] }) {
-  const { id } = await params;
-  const share = await getShare(id);
-  if (!share) notFound();
+async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] }) {
+  const loaded = await load(params);
+  if (!loaded?.share) notFound();
+  const { handle, user, share } = loaded;
+  // Old links used the numeric id; the handle is the canonical URL.
+  if (handle !== user.username) permanentRedirect(sharePath(user.username));
+  const { nodes } = await getNetwork(user.id);
+  const me = { ...share.user, vote: share.vote };
   return (
     <>
       <div className="flex items-center gap-3">
@@ -55,6 +67,18 @@ async function Share({ params }: { params: PageProps<"/r/[id]">["params"] }) {
       >
         Ver como a minha rede vota
       </a>
+      {nodes.length > 0 && (
+        <div className="mt-8">
+          <Bubble
+            me={me}
+            nodes={nodes}
+            shareBase={appUrl()}
+            title={`A bolha de @${share.user.username}`}
+            centerLabel={share.user.username.slice(0, 1).toUpperCase()}
+            readOnly
+          />
+        </div>
+      )}
     </>
   );
 }

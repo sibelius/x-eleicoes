@@ -28,7 +28,22 @@ function initials(name: string | null) {
   return (name ?? "?").split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 }
 
-export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[]; shareBase: string }) {
+export function Bubble({
+  me,
+  nodes,
+  shareBase,
+  title = "Sua bolha",
+  centerLabel = "VOCÊ",
+  readOnly = false,
+}: {
+  me: Me;
+  nodes: NetworkNode[];
+  shareBase: string;
+  title?: string;
+  centerLabel?: string;
+  /** Public page: a visitor can look, but not ask people to vote on the owner's behalf. */
+  readOnly?: boolean;
+}) {
   const [layout, setLayout] = useState<SimNode[] | null>(null);
   const box = useMemo(() => {
     if (!layout) return { x: 0, y: 0, w: W, h: H };
@@ -73,7 +88,7 @@ export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[];
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Sua bolha</h2>
+        <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex gap-1 text-sm">
           {(
             [
@@ -108,10 +123,10 @@ export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[];
             ) : null,
           )}
         </defs>
-        <text x={W * 0.28} y={box.y + 20} textAnchor="middle" className="fill-[var(--lula)] text-base font-bold">
+        <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--lula)] text-base font-bold">
           Lula
         </text>
-        <text x={W * 0.72} y={box.y + 20} textAnchor="middle" className="fill-[var(--bolso)] text-base font-bold">
+        <text x={box.x + box.w - 12} y={box.y + 20} textAnchor="end" className="fill-[var(--bolso)] text-base font-bold">
           Bolsonaro
         </text>
         {layout?.map((d) => {
@@ -133,7 +148,7 @@ export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[];
               />
               {(n?.member || !n) && !n?.avatar && d.r > 11 && (
                 <text textAnchor="middle" dy="0.35em" className="pointer-events-none fill-white text-[10px] font-bold">
-                  {n ? initials(n.name) : "VOCÊ"}
+                  {n ? initials(n.name) : centerLabel}
                 </text>
               )}
               <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
@@ -141,7 +156,9 @@ export function Bubble({ me, nodes, shareBase }: { me: Me; nodes: NetworkNode[];
           );
         })}
       </svg>
-      {selected && <NodeCard n={selected} me={me} shareBase={shareBase} onClose={() => setSelected(null)} />}
+      {selected && (
+        <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }
@@ -155,7 +172,19 @@ function Legend({ c, label }: { c: string; label: string }) {
   );
 }
 
-function NodeCard({ n, me, shareBase, onClose }: { n: NetworkNode; me: Me; shareBase: string; onClose: () => void }) {
+function NodeCard({
+  n,
+  me,
+  shareBase,
+  readOnly,
+  onClose,
+}: {
+  n: NetworkNode;
+  me: Me;
+  shareBase: string;
+  readOnly: boolean;
+  onClose: () => void;
+}) {
   const rel = [n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null, n.invite ? "Convite" : null]
     .filter(Boolean)
     .join(" · ");
@@ -175,7 +204,7 @@ function NodeCard({ n, me, shareBase, onClose }: { n: NetworkNode; me: Me; share
         </div>
       </div>
       <div className="flex gap-2 text-sm">
-        {!n.voted && (
+        {!n.voted && !readOnly && (
           <a
             className="rounded-full bg-fg px-3 py-1.5 text-bg"
             href={inviteTweetUrl(shareBase, me.id, n.username)}

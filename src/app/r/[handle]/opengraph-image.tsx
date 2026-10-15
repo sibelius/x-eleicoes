@@ -1,30 +1,36 @@
 import { ImageResponse } from "next/og";
+import { BubbleArt, OG, networkArt } from "@/lib/bubble-art";
 import { pct } from "@/lib/links";
-import { getShare } from "@/lib/network";
+import { getNetwork, getShare, resolveUser } from "@/lib/network";
 
 export const alt = "Como a minha rede do X vota";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default async function Image({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const share = await getShare(id);
+export default async function Image({ params }: { params: Promise<{ handle: string }> }) {
+  const { handle } = await params;
+  const id = (await resolveUser(decodeURIComponent(handle)))?.id ?? "";
+  const share = id ? await getShare(id) : null;
   const t = share?.tally ?? { lula: 0, bolsonaro: 0, total: 0 };
   const l = pct(t.lula, t.total);
   const b = t.total ? 100 - l : 0;
+  const art = share ? await networkArt({ id, vote: share.vote }, (await getNetwork(id)).nodes) : [];
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, background: "#0c0c0e", color: "#f2f2f0" }}>
-        <div style={{ fontSize: 34, color: "#9c9ca3" }}>{`Como a rede de @${share?.user.username ?? "?"} vota`}</div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 40, fontSize: 84, fontWeight: 800 }}>
-          <span style={{ color: "#f0444f" }}>{`Lula ${l}%`}</span>
-          <span style={{ color: "#2bb56b" }}>{`Bolsonaro ${b}%`}</span>
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", background: OG.bg, color: OG.fg }}>
+        <div style={{ display: "flex", flexDirection: "column", width: 500, paddingLeft: 64, paddingRight: 24 }}>
+          <div style={{ fontSize: 34, color: OG.subtle }}>{`Como a rede de @${share?.user.username ?? "?"} vota`}</div>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, fontSize: 60, fontWeight: 800, lineHeight: 1.15 }}>
+            <span style={{ color: OG.lula }}>{`Lula ${l}%`}</span>
+            <span style={{ color: OG.bolso }}>{`Bolsonaro ${b}%`}</span>
+          </div>
+          <div style={{ display: "flex", height: 28, marginTop: 28, borderRadius: 14, overflow: "hidden", background: OG.muted }}>
+            <div style={{ width: `${l}%`, background: OG.lula }} />
+            <div style={{ width: `${b}%`, background: OG.bolso }} />
+          </div>
+          <div style={{ marginTop: 24, fontSize: 28, color: OG.subtle }}>{`${t.total} votos na rede · E a sua rede?`}</div>
         </div>
-        <div style={{ display: "flex", height: 48, marginTop: 24, borderRadius: 24, overflow: "hidden", background: "#222226" }}>
-          <div style={{ width: `${l}%`, background: "#f0444f" }} />
-          <div style={{ width: `${b}%`, background: "#2bb56b" }} />
-        </div>
-        <div style={{ marginTop: 32, fontSize: 30, color: "#9c9ca3" }}>{`${t.total} votos na rede · E a sua rede?`}</div>
+        {art.length > 0 && <BubbleArt nodes={art} width={680} height={600} />}
       </div>
     ),
     size,

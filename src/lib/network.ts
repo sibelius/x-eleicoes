@@ -44,6 +44,19 @@ export async function getMe(uid: string): Promise<Me | null> {
   };
 }
 
+/** /r/<handle> accepts the X handle (canonical) or the numeric user id (old links). */
+export async function resolveUser(handle: string): Promise<{ id: string; username: string } | null> {
+  const client = await db();
+  const r = await client.execute({
+    sql: `SELECT id, username FROM users WHERE id = :h
+          UNION ALL SELECT id, username FROM users WHERE username = :h COLLATE NOCASE
+          LIMIT 1`,
+    args: { h: handle.replace(/^@/, "") },
+  });
+  const row = r.rows[0];
+  return row ? { id: String(row.id), username: String(row.username) } : null;
+}
+
 type Row = {
   id: string;
   member: number;
@@ -78,7 +91,8 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
       FROM agg
       LEFT JOIN users u ON u.id = agg.id
       LEFT JOIN profiles p ON p.id = agg.id
-      ORDER BY member DESC, (agg.following + agg.follower + agg.invite) DESC
+      ORDER BY member DESC, (COALESCE(u.username, p.username) IS NOT NULL) DESC,
+        (agg.following + agg.follower + agg.invite) DESC
       LIMIT :lim`,
     args: { uid, lim: 5000 },
   });
