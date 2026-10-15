@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
 import { BubbleVideo } from "./BubbleVideo";
+import { LiveWatchers, useLive } from "./LiveWatchers";
 import { SIDE, comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
@@ -49,6 +50,7 @@ export function Bubble({
   readOnly = false,
   shareUrl,
   tally,
+  own = false,
 }: {
   /** The owner in the middle; null for the combined bubble of everyone. */
   me: Me | null;
@@ -62,6 +64,8 @@ export function Bubble({
   shareUrl?: string;
   /** Enables the "make a video" button. */
   tally?: Tally;
+  /** The viewer is the owner ("N people watching your bubble"). */
+  own?: boolean;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState(WIDE);
@@ -80,6 +84,10 @@ export function Bubble({
   }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
   const router = useRouter();
+  // Who's looking at this bubble right now, and which members are online.
+  const live = useLive(me?.id ?? "_all");
+  const online = useMemo(() => new Set(live?.online ?? []), [live]);
+  const onlineHere = useMemo(() => nodes.filter((n) => online.has(n.id)).length, [nodes, online]);
   const [filter, setFilter] = useState<"all" | "members" | "mutual">("all");
   const filters = me
     ? ([
@@ -267,10 +275,16 @@ export function Bubble({
           ))}
         </div>
       </div>
+      {live && live.watching > 0 && (
+        <div className="mb-2">
+          <LiveWatchers live={live} own={own} />
+        </div>
+      )}
       <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
         <Legend c="var(--red)" label={SIDE.red} />
         <Legend c="var(--green)" label={SIDE.green} />
         <Legend c="var(--none)" label="Ainda sem lado" />
+        {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
       <div className="relative">
@@ -349,12 +363,19 @@ export function Bubble({
                     {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
                     {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
                     {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
+                    {n && online.has(n.id) && (
+                      <circle r={d.r + 2} className="bubble-pulse" fill="none" stroke="var(--accent)" strokeWidth={2} />
+                    )}
                     <circle
                       r={d.r - sw / 2}
                       fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
                       stroke={ring}
                       strokeWidth={sw}
                     />
+                    {/* Online now: a small dot on the shoulder. */}
+                    {n && online.has(n.id) && (
+                      <circle cx={d.r * 0.7} cy={-d.r * 0.7} r={Math.max(3.5, d.r * 0.28)} fill="var(--accent)" stroke="var(--card)" strokeWidth={1.5} />
+                    )}
                     {!avatar && d.r > 9 && (
                       <text
                         textAnchor="middle"

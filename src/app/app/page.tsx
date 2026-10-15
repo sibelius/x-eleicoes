@@ -130,7 +130,7 @@ async function Dashboard() {
             </form>
           </section>
           <div className="order-3 min-w-0 lg:order-none">
-            <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} tally={tally} />
+            <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} tally={tally} own />
           </div>
           <div data-tour="size" className="order-3 min-w-0 lg:order-none">
             <BubbleSize size={size} nudgeUrl={silent.length ? nudgeTweetUrl(base, me.id, silent) : undefined} />

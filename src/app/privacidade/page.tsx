@@ -32,6 +32,12 @@ export default function PrivacyPage() {
         <li>Sua escolha (Vermelho ou Verde), que é pública e aparece com o seu @.</li>
         <li>Listas públicas de quem você segue e de quem te segue no X, para montar a sua bolha.</li>
         <li>Contagens anônimas de visitas (um identificador aleatório em cookie) e, se você ativar, a inscrição de notificações do navegador.</li>
+        <li>
+          Presença ao vivo: enquanto você está logado com o site aberto, outras pessoas veem que você está online, e quem
+          é dono de uma bolha vê o seu @ se você estiver olhando a bolha dele agora. Visitantes sem login aparecem só
+          como número.
+        </li>
+        <li>De onde você chegou (as marcações utm dos links que o app gera, como posts no X e notificações), para saber quais links funcionam.</li>
       </ul>
 
       <h2 className="mt-6 text-lg font-semibold">Base legal e cuidados (LGPD)</h2>

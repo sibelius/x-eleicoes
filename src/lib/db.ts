@@ -121,6 +121,13 @@ const SCHEMA = [
     path TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS utm_events_at ON utm_events (at)`,
+  // Which bubble each visitor is looking at right now (heartbeat from the bubble on screen), for "N vendo agora".
+  `CREATE TABLE IF NOT EXISTS watching (
+    visitor TEXT PRIMARY KEY,
+    bubble TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS watching_bubble ON watching (bubble, at)`,
   // Last "someone shared your bubble" push per owner, at most one every 30 minutes.
   `CREATE TABLE IF NOT EXISTS share_pushes (
     uid TEXT PRIMARY KEY,
