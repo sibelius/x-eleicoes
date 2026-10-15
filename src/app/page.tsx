@@ -34,7 +34,7 @@ export default function Home({ searchParams }: PageProps<"/">) {
         aparecem com o @ de quem votou. Você pode excluir seus dados quando quiser.
       </p>
       <div className="mt-10">
-        <SupportStrip />
+        <SupportStrip placement="home" />
       </div>
     </main>
   );

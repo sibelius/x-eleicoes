@@ -74,7 +74,7 @@ async function Dashboard() {
       </header>
 
       <div className="mt-4">
-        <SupportStrip />
+        <SupportStrip placement="app" />
       </div>
 
       {/* Phones: one column ordered vote → result → bubble → invites → archive; desktop: two columns. */}

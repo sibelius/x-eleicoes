@@ -133,7 +133,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         </div>
       )}
       <div className="mt-4">
-        <SupportStrip />
+        <SupportStrip placement="bubble" />
       </div>
       <div className="mt-4">
         <BubbleSize size={size} />

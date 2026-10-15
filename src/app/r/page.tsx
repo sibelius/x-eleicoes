@@ -34,7 +34,7 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
         </Link>
       </div>
       <div className="mt-4">
-        <SupportStrip />
+        <SupportStrip placement="directory" />
       </div>
       <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
         <Members searchParams={searchParams} />
