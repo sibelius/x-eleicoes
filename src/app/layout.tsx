@@ -29,7 +29,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col font-sans">
         {children}
         <footer className="mt-auto px-4 py-6 text-center text-xs text-subtle">
-          Código aberto ·{" "}
+          <a href="/apoie" className="font-semibold underline">
+            💚 Apoie com Pix
+          </a>{" "}
+          ·{" "}
+          <a href="/apoie" className="underline">
+            Anuncie aqui
+          </a>{" "}
+          · Código aberto ·{" "}
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="underline">
             github.com/sibelius/x-eleicoes
           </a>

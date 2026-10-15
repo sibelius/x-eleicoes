@@ -49,6 +49,9 @@ async function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">
+          <Link href="/apoie" className="rounded-full bg-[var(--bolso)] px-3 py-1 font-semibold text-white">
+            Doar
+          </Link>
           <Link href="/ranking" className="text-subtle underline">
             Ranking
           </Link>
