@@ -12,6 +12,25 @@ export const PIX = {
 };
 const PRESETS = [5, 10, 25, 50, 100];
 
+/** We can't see a static Pix arrive, so after copying/scanning we offer "I just donated" to post on X. */
+function donatedTweetUrl(amount: number | null) {
+  const text = `Acabei de doar${amount ? ` R$ ${amount.toFixed(2).replace(".", ",").replace(",00", "")}` : ""} para o projeto Minha Rede Vota 💚 Apoie também e veja como a sua rede do X vota: Lula ou Bolsonaro?`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${typeof location === "undefined" ? "https://x-eleicoes.vercel.app" : location.origin}/apoie`)}`;
+}
+
+function SharedDonation({ amount, className = "" }: { amount: number | null; className?: string }) {
+  return (
+    <a
+      href={donatedTweetUrl(amount)}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-block rounded-full border border-line px-4 py-1.5 text-sm ${className}`}
+    >
+      💚 Já doei, compartilhar no X
+    </a>
+  );
+}
+
 /** Compact Pix for every screen: R$ 10 preselected, small QR on desktop, copy button first on phones. */
 export function DonateMini() {
   const [amount, setAmount] = useState(10);
@@ -48,6 +67,8 @@ export function DonateMini() {
         <button onClick={copy} className="mt-2 rounded-full bg-[var(--bolso)] px-4 py-1.5 text-sm font-semibold text-white">
           {copied ? "Copiado ✓ cole no app do banco" : `Copiar Pix de R$ ${amount}`}
         </button>
+        {/* Desktop donors scan the QR without copying, so this is always there. */}
+        <SharedDonation amount={amount} className="mt-2 ml-1 sm:ml-0" />
       </div>
     </div>
   );
@@ -117,6 +138,8 @@ export function Donate() {
           <button onClick={copy} className="mt-2 rounded-full bg-fg px-4 py-2 text-bg">
             {copied ? "Copiado ✓" : "Copiar Pix copia e cola"}
           </button>
+          <p className="mt-4 text-subtle">Doou? Conte pra sua rede, isso ajuda muito:</p>
+          <SharedDonation amount={amount} className="mt-2" />
         </div>
       </div>
     </div>
