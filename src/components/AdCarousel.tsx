@@ -36,7 +36,7 @@ function adUrl(href: string, placement: string) {
   return u.toString();
 }
 
-/** Swipeable ad carousel: starts on a random ad, advances every few seconds, pauses while hovered or touched. */
+/** Swipeable ad carousel with prev/next arrows: starts on a random ad, advances every few seconds, pauses while hovered or touched. */
 export function AdCarousel({ placement }: { placement: string }) {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -100,24 +100,42 @@ export function AdCarousel({ placement }: { placement: string }) {
       onMouseLeave={() => setPaused(false)}
       onTouchStart={() => setPaused(true)}
     >
-      <div
-        ref={track}
-        onScroll={onScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {ADS.map((ad, i) => (
-          <a
-            key={ad.name}
-            href={adUrl(ad.href, placement)}
-            target="_blank"
-            rel="noopener sponsored"
-            onClick={() => trackAd(ad.name, placement, "click")}
-            className="block w-full shrink-0 snap-center"
-            aria-hidden={i !== index}
-            tabIndex={i === index ? 0 : -1}
+      <div className="group relative">
+        <div
+          ref={track}
+          onScroll={onScroll}
+          className="flex snap-x snap-mandatory overflow-x-auto rounded-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {ADS.map((ad, i) => (
+            <a
+              key={ad.name}
+              href={adUrl(ad.href, placement)}
+              target="_blank"
+              rel="noopener sponsored"
+              onClick={() => trackAd(ad.name, placement, "click")}
+              className="block w-full shrink-0 snap-center"
+              aria-hidden={i !== index}
+              tabIndex={i === index ? 0 : -1}
+            >
+              <img src={ad.image} alt={ad.alt} width={1200} height={630} className="h-auto w-full" draggable={false} loading="lazy" />
+            </a>
+          ))}
+        </div>
+        {[
+          { label: "Anúncio anterior", step: -1, side: "left-2", path: "M15 18l-6-6 6-6" },
+          { label: "Próximo anúncio", step: 1, side: "right-2", path: "M9 18l6-6-6-6" },
+        ].map((b) => (
+          <button
+            key={b.step}
+            type="button"
+            onClick={() => go((index + b.step + ADS.length) % ADS.length)}
+            aria-label={b.label}
+            className={`absolute top-1/2 ${b.side} grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-opacity hover:bg-black/65 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
           >
-            <img src={ad.image} alt={ad.alt} width={1200} height={630} className="h-auto w-full" draggable={false} loading="lazy" />
-          </a>
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d={b.path} />
+            </svg>
+          </button>
         ))}
       </div>
       <div className="mt-2 flex justify-center gap-1.5">
