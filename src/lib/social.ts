@@ -1,6 +1,7 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { db } from "./db";
-import { BUBBLE_TALLIES_SQL, type Me, type Tally, type Vote } from "./network";
+import { PER_USER, SHARED, bubbleTallies, type Me, type Tally, type Vote } from "./network";
 
 const MEMBER = "id GLOB '[0-9]*'";
 
@@ -19,6 +20,8 @@ export type Missing = { id: string; username: string; name: string; avatar: stri
  * not celebrities), then by how many members already follow them.
  */
 export async function getMissing(uid: string, limit = 10): Promise<Missing[]> {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
   const r = await client.execute({
     sql: `SELECT e.dst AS id, p.username, p.name, p.avatar,
@@ -54,6 +57,8 @@ export type Twin = Me & { similarity: number; shared: number };
  * similar one who picked the other side.
  */
 export async function getTwins(uid: string): Promise<{ twin: Twin | null; opposite: Twin | null }> {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
   const [overlap, meRow] = await client.batch(
     [
@@ -104,6 +109,8 @@ export type Bridge = { path: Me[]; steps: number } | null;
  * nearest member who picked the other side. Null when they haven't picked or nobody is reachable.
  */
 export async function getBridge(uid: string): Promise<Bridge> {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
   const [members, edges] = await client.batch(
     [
@@ -161,10 +168,12 @@ export type Wrapped = {
 
 /** The numbers behind a bubble's "retrospectiva" card. */
 export async function getWrapped(uid: string): Promise<Wrapped> {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
-  const [tallies, first, counts] = await client.batch(
+  const tallies = await bubbleTallies();
+  const [first, counts] = await client.batch(
     [
-      BUBBLE_TALLIES_SQL,
       {
         sql: `WITH rel AS (
                 SELECT dst AS id FROM edges WHERE src = :uid
@@ -189,8 +198,8 @@ export async function getWrapped(uid: string): Promise<Wrapped> {
     "read",
   );
   const closedness = (red: number, total: number) => Math.max(red, total - red) / total;
-  const all = tallies.rows.map((r) => ({ id: String(r.id), red: Number(r.red), total: Number(r.total) })).filter((t) => t.total >= 3);
-  const mineRow = tallies.rows.find((r) => String(r.id) === uid);
+  const all = tallies.filter((t) => t.total >= 3);
+  const mineRow = tallies.find((r) => r.id === uid);
   const red = Number(mineRow?.red ?? 0);
   const total = Number(mineRow?.total ?? 0);
   const c = total ? closedness(red, total) : 0;
@@ -216,15 +225,17 @@ export type VoteEvent = Me & { from: Vote | null; to: Vote; at: number };
 
 /** Public "quem virou": recent picks and switches, net flows, and the bubbles split down the middle. */
 export async function getSwing() {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
-  const [events, flows, tallies, members] = await client.batch(
+  const tallies = await bubbleTallies();
+  const [events, flows, members] = await client.batch(
     [
       `SELECT c.uid AS id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, c.from_vote, c.to_vote, c.at
        FROM vote_changes c JOIN users u ON u.id = c.uid LEFT JOIN profiles p ON p.id = u.id
        ORDER BY c.at DESC LIMIT 60`,
       `SELECT from_vote, to_vote, COUNT(*) AS n FROM vote_changes
        WHERE from_vote IS NOT NULL AND from_vote <> to_vote GROUP BY from_vote, to_vote`,
-      BUBBLE_TALLIES_SQL,
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
        FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.${MEMBER}`,
     ],
@@ -239,11 +250,11 @@ export async function getSwing() {
     else flow.toRed += Number(r.n);
   }
   const byId = new Map(members.rows.map((r) => [String(r.id), person(r)]));
-  const edge: Swing[] = tallies.rows
+  const edge: Swing[] = tallies
     .flatMap((r) => {
-      const m = byId.get(String(r.id));
-      const total = Number(r.total);
-      const red = Number(r.red);
+      const m = byId.get(r.id);
+      const total = r.total;
+      const red = r.red;
       if (!m || total < 5 || Math.abs(red / total - 0.5) > 0.1) return [];
       return [{ ...m, tally: { red, green: total - red, total } }];
     })

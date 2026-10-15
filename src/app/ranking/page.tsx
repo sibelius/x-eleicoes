@@ -7,7 +7,7 @@ import { connection } from "next/server";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pct, sharePath } from "@/lib/links";
 import { getRankings, type Me, type Ranked } from "@/lib/network";
-import { getRace } from "@/lib/race";
+import { getRaceBoard } from "@/lib/race";
 import { RaceBoard } from "@/components/play/RaceBoard";
 
 export const metadata: Metadata = {
@@ -39,7 +39,7 @@ export default function RankingPage() {
 
 async function Boards() {
   await connection(); // live data, not frozen at build time
-  const [r, race] = await Promise.all([getRankings(), getRace()]);
+  const [r, race] = await Promise.all([getRankings(), getRaceBoard()]);
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
       <RaceBoard racers={race.racers} end={race.end} now={race.now} />

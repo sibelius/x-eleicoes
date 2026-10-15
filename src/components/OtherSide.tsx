@@ -1,5 +1,6 @@
 import { SIDE, challengeTweetUrl, comparePath } from "@/lib/links";
 import type { Me, NetworkNode, Vote } from "@/lib/network";
+import { AskButton } from "./play/AskButton";
 
 /** People in your bubble who vote the other way, each one a click from a public challenge. */
 export function OtherSide({ me, nodes, base }: { me: Me & { vote: Vote }; nodes: NetworkNode[]; base: string }) {
@@ -11,7 +12,7 @@ export function OtherSide({ me, nodes, base }: { me: Me & { vote: Vote }; nodes:
       <h2 className="text-lg font-semibold">Do outro lado</h2>
       <p className="mt-1 text-sm text-subtle">
         {other.length} {other.length === 1 ? "pessoa" : "pessoas"} da sua bolha {other.length === 1 ? "é" : "são"}{" "}
-        <b style={{ color: me.vote === "red" ? "var(--green)" : "var(--red)" }}>{side}</b>. Desafie a comparar as bolhas.
+        <b style={{ color: me.vote === "red" ? "var(--green)" : "var(--red)" }}>{side}</b>. Peça para trocar de cor ou desafie a comparar as bolhas.
       </p>
       <ul className="mt-3 grid gap-2 text-sm">
         {other.map((n) => (
@@ -22,6 +23,8 @@ export function OtherSide({ me, nodes, base }: { me: Me & { vote: Vote }; nodes:
                 {n.name} <span className="text-subtle">@{n.username}</span>
               </span>
             </a>
+            <span className="flex shrink-0 gap-1.5">
+            <AskButton to={n.username!} mySide={me.vote} compact />
             <a
               className="shrink-0 rounded-full bg-fg px-3 py-1 text-bg"
               href={challengeTweetUrl(base, { username: me.username, vote: me.vote }, n.username!)}
@@ -30,6 +33,7 @@ export function OtherSide({ me, nodes, base }: { me: Me & { vote: Vote }; nodes:
             >
               Desafiar
             </a>
+            </span>
           </li>
         ))}
       </ul>

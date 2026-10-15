@@ -4,7 +4,10 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { ListSkeleton } from "@/components/Skeleton";
 import { LiveRoom } from "@/components/play/LiveRoom";
-import { daysToBigDay, isLiveNight } from "@/lib/links";
+import { Bubble } from "@/components/Bubble";
+import { daysToBigDay, isLiveNight, shareTweetUrl } from "@/lib/links";
+import { getGlobalNetwork } from "@/lib/network";
+import { appUrl } from "@/lib/session";
 import { getRoom } from "@/lib/room";
 
 export const metadata: Metadata = {
@@ -30,7 +33,8 @@ export default function LivePage() {
 
 async function Live() {
   await connection();
-  const room = await getRoom();
+  const [room, nodes] = await Promise.all([getRoom(), getGlobalNetwork()]);
+  const tally = { red: room.totals.red, green: room.totals.green, total: room.totals.red + room.totals.green };
   const now = room.at;
   const days = daysToBigDay(now);
   return (
@@ -43,6 +47,16 @@ async function Live() {
             : "O placar de todo mundo, atualizado a cada poucos segundos."}
       </p>
       <div className="mt-6">
+        <Bubble
+          me={null}
+          nodes={nodes}
+          shareBase={appUrl()}
+          title="A bolha de todo mundo, ao vivo"
+          readOnly
+          shareUrl={shareTweetUrl(appUrl(), null, tally)}
+        />
+      </div>
+      <div className="mt-4">
         <LiveRoom initial={room} />
       </div>
     </>

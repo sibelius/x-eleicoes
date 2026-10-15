@@ -15,6 +15,8 @@ import { getBridge, getTwins } from "@/lib/social";
 import { GuessHidden, GuessPanel, GuessProvider } from "@/components/play/Guess";
 import { Twins } from "@/components/play/Twins";
 import { BridgeCard } from "@/components/play/BridgeCard";
+import { AskButton } from "@/components/play/AskButton";
+import { getMe } from "@/lib/network";
 import { viewCount } from "@/lib/views";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import Link from "next/link";
@@ -64,6 +66,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   ]);
   // The guessing game: everyone but the owner guesses before seeing a bubble with a few picks.
   const game = viewer !== user.id && share.tally.total >= 3;
+  // Signed-in members on the other side can ask the owner to change color.
+  const asker = viewer && viewer !== user.id && share.member && share.vote ? await getMe(viewer) : null;
+  const canAsk = asker?.vote && asker.vote !== share.vote ? asker.vote : null;
   return (
     <GuessProvider bubble={user.id} on={game}>
       <div data-tour="r-header" className="flex items-center gap-3">
@@ -136,6 +141,11 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       >
         Comparar com a minha bolha
       </a>
+      {canAsk && (
+        <div data-tour="ask" className="mt-3 self-start">
+          <AskButton to={share.user.username} mySide={canAsk} />
+        </div>
+      )}
       {share.member && (
         <Link data-tour="wrapped" href={wrappedPath(share.user.username)} className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold">
           🎁 Retrospectiva da bolha

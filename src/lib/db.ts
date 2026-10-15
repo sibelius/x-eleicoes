@@ -177,6 +177,40 @@ const SCHEMA = [
     uid TEXT NOT NULL,
     PRIMARY KEY (key, uid)
   )`,
+  // Member-to-member messages: asks to change color ("ask") and the answers ("reply"), from preset texts.
+  `CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    from_uid TEXT NOT NULL,
+    to_uid TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    preset TEXT NOT NULL,
+    body TEXT NOT NULL,
+    side TEXT,
+    via TEXT NOT NULL DEFAULT 'none',
+    live_at INTEGER,
+    seen_at INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS messages_to ON messages (to_uid, at)`,
+  `CREATE INDEX IF NOT EXISTS messages_from ON messages (from_uid, at)`,
+  // Members who don't want asks to change color.
+  `CREATE TABLE IF NOT EXISTS ask_mutes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
+  // Every web push the app sent (one row per member per notification), for the admin.
+  `CREATE TABLE IF NOT EXISTS push_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    uid TEXT NOT NULL,
+    campaign TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    url TEXT NOT NULL,
+    devices INTEGER NOT NULL,
+    delivered INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS push_log_at ON push_log (at)`,
 ];
 
 export async function db(): Promise<Client> {

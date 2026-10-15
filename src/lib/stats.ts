@@ -1,7 +1,7 @@
 import "server-only";
 import { ADS } from "./ads";
 import { db } from "./db";
-import { BUBBLE_TALLIES_SQL, type Vote } from "./network";
+import { bubbleTallies, type Vote } from "./network";
 import { SITE } from "./views-shared";
 
 // Numbers for the /admin screens. Everything is computed on request; the data is small.
@@ -210,16 +210,13 @@ export type BubbleLean = { id: string; username: string; vote: Vote | null; red:
 /** Each member's bubble lean, with their own vote, for the polarization scatter. */
 export async function getBubbleLeans(): Promise<BubbleLean[]> {
   const client = await db();
-  const [tallies, members] = await client.batch(
-    [BUBBLE_TALLIES_SQL, "SELECT id, username, vote FROM users WHERE id GLOB '[0-9]*'"],
-    "read",
-  );
+  const [tallies, members] = await Promise.all([bubbleTallies(), client.execute("SELECT id, username, vote FROM users WHERE id GLOB '[0-9]*'")]);
   const byId = new Map(members.rows.map((r) => [String(r.id), { username: String(r.username), vote: (r.vote as Vote | null) ?? null }]));
-  return tallies.rows.flatMap((r) => {
-    const m = byId.get(String(r.id));
-    const total = Number(r.total);
+  return tallies.flatMap((r) => {
+    const m = byId.get(r.id);
+    const total = r.total;
     if (!m || !total) return [];
-    const red = Number(r.red);
+    const red = r.red;
     return [{ id: String(r.id), username: m.username, vote: m.vote, red, green: total - red, total }];
   });
 }
@@ -279,5 +276,109 @@ export async function getUtmStats() {
     detail: [...all].sort((a, b) => b.visits - a.visits),
     daily: days.map((day) => ({ day, visits: Number(found.get(day)?.visits ?? 0), signups: Number(found.get(day)?.signups ?? 0) })),
     paths: paths.rows.map((r) => ({ path: String(r.path), visits: Number(r.n) })),
+  };
+}
+
+export type PushLogRow = { id: number; at: number; username: string | null; campaign: string; title: string; body: string; url: string; devices: number; delivered: number };
+
+/** Every web push sent (newest first), plus totals per notification type and per day. */
+export async function getPushLog(limit = 300) {
+  const client = await db();
+  const since = Date.now() - 14 * 86400_000;
+  const [rows, byCampaign, byDay] = await client.batch(
+    [
+      {
+        sql: `SELECT l.id, l.at, u.username, l.campaign, l.title, l.body, l.url, l.devices, l.delivered
+              FROM push_log l LEFT JOIN users u ON u.id = l.uid ORDER BY l.at DESC LIMIT ?`,
+        args: [limit],
+      },
+      `SELECT campaign, COUNT(*) AS n, SUM(delivered > 0) AS ok, COUNT(DISTINCT uid) AS people FROM push_log GROUP BY campaign ORDER BY n DESC`,
+      { sql: "SELECT at FROM push_log WHERE at > ?", args: [since] },
+    ],
+    "read",
+  );
+  const days = new Map(lastDays(14).map((d) => [d, 0]));
+  for (const r of byDay.rows) {
+    const d = brDay(Number(r.at));
+    if (days.has(d)) days.set(d, days.get(d)! + 1);
+  }
+  return {
+    rows: rows.rows.map((r) => ({
+      id: Number(r.id),
+      at: Number(r.at),
+      username: (r.username as string | null) ?? null,
+      campaign: String(r.campaign),
+      title: String(r.title),
+      body: String(r.body),
+      url: String(r.url),
+      devices: Number(r.devices),
+      delivered: Number(r.delivered),
+    })) as PushLogRow[],
+    byCampaign: byCampaign.rows.map((r) => ({ campaign: String(r.campaign), n: Number(r.n), ok: Number(r.ok), people: Number(r.people) })),
+    daily: [...days].map(([day, pushes]) => ({ day, pushes })) as DayPoint[],
+  };
+}
+
+/** Database health: rows per table, file size, and how the main tables grew per day. */
+export async function getDbStats() {
+  const client = await db();
+  const tables = (await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' ORDER BY name")).rows.map((r) =>
+    String(r.name),
+  );
+  const counts = await client.batch(
+    tables.map((t) => `SELECT COUNT(*) AS n FROM "${t.replace(/"/g, "")}"`),
+    "read",
+  );
+  let bytes: number | null = null;
+  try {
+    const [pc, ps] = await client.batch(["PRAGMA page_count", "PRAGMA page_size"], "read");
+    bytes = Number(Object.values(pc.rows[0])[0]) * Number(Object.values(ps.rows[0])[0]);
+  } catch {
+    bytes = null; // not every libSQL host exposes pragmas
+  }
+  const since = Date.now() - 14 * 86400_000;
+  const [users, votes, messages, views, extra] = await client.batch(
+    [
+      { sql: "SELECT created_at AS at FROM users WHERE created_at > ? AND id GLOB '[0-9]*'", args: [since] },
+      { sql: "SELECT at FROM vote_changes WHERE at > ?", args: [since] },
+      { sql: "SELECT at FROM messages WHERE at > ?", args: [since] },
+      { sql: "SELECT day, COUNT(*) AS n FROM views WHERE uid = '_site' AND day >= ? GROUP BY day", args: [lastDays(14)[0]] },
+      `SELECT
+         (SELECT COUNT(DISTINCT src) FROM edges) AS importers,
+         (SELECT ROUND(AVG(n)) FROM (SELECT COUNT(*) AS n FROM edges GROUP BY src)) AS avg_following,
+         (SELECT COUNT(*) FROM profiles WHERE username IS NULL) AS profiles_unnamed,
+         (SELECT COUNT(*) FROM users WHERE id GLOB '[0-9]*' AND avatar IS NULL) AS members_no_photo,
+         (SELECT COUNT(*) FROM users u WHERE id GLOB '[0-9]*' AND NOT EXISTS (SELECT 1 FROM edges e WHERE e.src = u.id)) AS members_no_edges,
+         (SELECT COUNT(DISTINCT uid) FROM push_subs) AS push_people`,
+    ],
+    "read",
+  );
+  const daily = new Map(lastDays(14).map((d) => [d, { day: d, members: 0, picks: 0, messages: 0, visitors: 0 }]));
+  const bump = (rows: Record<string, unknown>[], key: "members" | "picks" | "messages") => {
+    for (const r of rows) {
+      const d = daily.get(brDay(Number(r.at)));
+      if (d) d[key]++;
+    }
+  };
+  bump(users.rows, "members");
+  bump(votes.rows, "picks");
+  bump(messages.rows, "messages");
+  for (const r of views.rows) {
+    const d = daily.get(String(r.day));
+    if (d) d.visitors = Number(r.n);
+  }
+  const x = extra.rows[0];
+  return {
+    tables: tables.map((name, i) => ({ name, rows: Number(counts[i].rows[0].n) })).sort((a, b) => b.rows - a.rows),
+    bytes,
+    daily: [...daily.values()] as unknown as DayPoint[],
+    health: {
+      importers: Number(x.importers),
+      avgFollowing: Number(x.avg_following ?? 0),
+      profilesUnnamed: Number(x.profiles_unnamed),
+      membersNoPhoto: Number(x.members_no_photo),
+      membersNoEdges: Number(x.members_no_edges),
+      pushPeople: Number(x.push_people),
+    },
   };
 }

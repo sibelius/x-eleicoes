@@ -1,4 +1,5 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { db } from "./db";
 import type { Vote } from "./network";
 
@@ -15,6 +16,8 @@ const ONLINE_WINDOW = 2 * 60_000; // same as the live bar
 
 /** The live room: everyone's score, who is online on each side, the last hour, and a feed of picks and joins. */
 export async function getRoom(): Promise<Room> {
+  "use cache: remote";
+  cacheLife({ stale: 5, revalidate: 10, expire: 60 });
   const now = Date.now();
   const client = await db();
   const [totals, online, hour, picks, joins] = await client.batch(

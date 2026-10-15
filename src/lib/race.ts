@@ -1,4 +1,5 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { db } from "./db";
 import type { Me, Vote } from "./network";
 
@@ -47,4 +48,11 @@ export async function passedBy(inviter: string, newcomer: string) {
   if (!mine) return [];
   const myBefore = was.get(inviter) ?? Infinity;
   return after.racers.filter((r) => r.id !== inviter && r.rank > mine.rank && r.rank <= 10 && (was.get(r.id) ?? Infinity) < myBefore);
+}
+
+/** The race as shown on screens: shared by everyone, refreshed every minute. */
+export async function getRaceBoard() {
+  "use cache: remote";
+  cacheLife({ stale: 30, revalidate: 60, expire: 600 });
+  return getRace();
 }

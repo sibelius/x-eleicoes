@@ -24,19 +24,23 @@ function ready() {
 /** `campaign` names the notification in the UTM tags its link carries (utm_source=push). */
 type Payload = { title: string; body: string; url: string; campaign: string };
 
-/** Push to the given browser subscriptions; dead ones (404/410) are removed. */
+/** Push to the given browser subscriptions (rows carry uid); dead ones (404/410) are removed; each member's push is logged. */
 async function send(rows: Record<string, unknown>[], payload: Payload) {
   const client = await db();
   let sent = 0;
+  const perUser = new Map<string, { devices: number; delivered: number }>();
   await Promise.all(
     rows.map(async (row) => {
       const endpoint = String(row.endpoint);
+      const u = perUser.get(String(row.uid)) ?? perUser.set(String(row.uid), { devices: 0, delivered: 0 }).get(String(row.uid))!;
+      u.devices++;
       try {
         await webpush.sendNotification(
           { endpoint, keys: { p256dh: String(row.p256dh), auth: String(row.auth) } },
           JSON.stringify({ ...payload, url: withUtm(payload.url, payload.campaign, { source: "push", medium: "webpush" }) }),
         );
         sent++;
+        u.delivered++;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) {
@@ -47,12 +51,24 @@ async function send(rows: Record<string, unknown>[], payload: Payload) {
       }
     }),
   );
+  if (perUser.size) {
+    const at = Date.now();
+    await client
+      .batch(
+        [...perUser].map(([uid, u]) => ({
+          sql: "INSERT INTO push_log (at, uid, campaign, title, body, url, devices, delivered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [at, uid, payload.campaign, payload.title, payload.body, payload.url, u.devices, u.delivered],
+        })),
+        "write",
+      )
+      .catch((e) => console.error("[push] log", e));
+  }
   return sent;
 }
 
 async function sendTo(uid: string, payload: Payload) {
   const client = await db();
-  const r = await client.execute({ sql: "SELECT endpoint, p256dh, auth FROM push_subs WHERE uid = ?", args: [uid] });
+  const r = await client.execute({ sql: "SELECT uid, endpoint, p256dh, auth FROM push_subs WHERE uid = ?", args: [uid] });
   return send(r.rows, payload);
 }
 
@@ -65,7 +81,7 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
             SELECT src AS id FROM edges WHERE dst = :uid
             UNION SELECT dst FROM edges WHERE src = :uid
           )
-          SELECT s.endpoint, s.p256dh, s.auth FROM push_subs s
+          SELECT s.uid, s.endpoint, s.p256dh, s.auth FROM push_subs s
           JOIN rel ON rel.id = s.uid
           WHERE s.uid <> :uid AND s.uid NOT IN (SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL)`,
     args: { uid: newcomer.id },
@@ -102,7 +118,7 @@ export async function notifyNetworkVoted(voter: string, vote: "red" | "green", o
                 UNION SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL
                 UNION SELECT id FROM users WHERE invited_by = :uid
               )
-              SELECT s.endpoint, s.p256dh, s.auth FROM push_subs s
+              SELECT s.uid, s.endpoint, s.p256dh, s.auth FROM push_subs s
               JOIN rel ON rel.id = s.uid WHERE s.uid <> :uid`,
         args: { uid: voter },
       },
@@ -334,4 +350,15 @@ export async function sendLiveNight(origin: string, key: string) {
     sent += await sendTo(uid, { ...payload, url: `${origin}/ao-vivo`, campaign: "live-night" });
   }
   return { users: subs.rows.length, sent };
+}
+
+/** An ask to change color, or the answer to one (the live toast covers members on the site right now). */
+export async function notifyMessage(to: string, from: string, kind: "ask" | "reply", body: string, origin: string) {
+  if (!ready()) return 0;
+  return sendTo(to, {
+    title: kind === "ask" ? `@${from} te pediu para trocar de cor 🔴🟢` : `@${from} respondeu seu pedido`,
+    body,
+    url: `${origin}/mensagens`,
+    campaign: kind === "ask" ? "ask" : "ask-reply",
+  });
 }

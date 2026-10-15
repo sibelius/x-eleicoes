@@ -25,7 +25,8 @@ import { Missing } from "@/components/play/Missing";
 import { Twins } from "@/components/play/Twins";
 import { BridgeCard } from "@/components/play/BridgeCard";
 import { getBridge, getMissing, getTwins, inviteOpens } from "@/lib/social";
-import { getRace } from "@/lib/race";
+import { unseenCount } from "@/lib/messages";
+import { getRaceBoard } from "@/lib/race";
 
 export default function AppPage() {
   return (
@@ -47,7 +48,7 @@ async function Dashboard() {
   const base = appUrl();
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const [views, invites, timeline, size, admin, missing, twins, bridge, race, opened] = await Promise.all([
+  const [views, invites, timeline, size, admin, missing, twins, bridge, race, opened, unseen] = await Promise.all([
     viewCount(me.id),
     inviteCount(me.id),
     getTimeline(me.id),
@@ -56,8 +57,9 @@ async function Dashboard() {
     getMissing(me.id),
     getTwins(me.id),
     getBridge(me.id),
-    getRace(),
+    getRaceBoard(),
     inviteOpens(me.id),
+    unseenCount(me.id),
   ]);
   const myRace = race.racers.find((r) => r.id === me.id);
   const bigDay = daysToBigDay();
@@ -88,6 +90,9 @@ async function Dashboard() {
           )}
           <Link href="/ranking" className="text-subtle underline">
             Ranking
+          </Link>
+          <Link data-tour="messages" href="/mensagens" className="text-subtle underline">
+            Mensagens{unseen > 0 && <span className="ml-1 rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white no-underline">{unseen}</span>}
           </Link>
           <Link href="/ao-vivo" className="text-subtle underline">
             Ao vivo

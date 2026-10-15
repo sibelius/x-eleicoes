@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
-import { SITE } from "@/lib/views-shared";
+import { siteCounts } from "@/lib/views";
 
 const VISITOR = "xe_vid";
 const WINDOW = 2 * 60_000; // seen in the last 2 minutes = online
@@ -13,20 +13,21 @@ export async function POST(req: NextRequest) {
   const visitor = uid ? `u:${uid}` : cookieId ?? crypto.randomUUID();
   const now = Date.now();
   const client = await db();
-  const [, , online, today, members] = await client.batch(
-    [
-      { sql: "INSERT INTO presence (visitor, at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET at = excluded.at", args: [visitor, now] },
-      { sql: "DELETE FROM presence WHERE at < ?", args: [now - 24 * 3600_000] },
-      { sql: "SELECT COUNT(*) AS n FROM presence WHERE at > ?", args: [now - WINDOW] },
-      { sql: "SELECT COUNT(*) AS n FROM views WHERE uid = ? AND day = ?", args: [SITE, new Date(now).toISOString().slice(0, 10)] },
-      "SELECT COUNT(*) AS n FROM users WHERE id GLOB '[0-9]*'",
-    ],
-    "write",
-  );
+  const [[, , online], counts] = await Promise.all([
+    client.batch(
+      [
+        { sql: "INSERT INTO presence (visitor, at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET at = excluded.at", args: [visitor, now] },
+        { sql: "DELETE FROM presence WHERE at < ?", args: [now - 24 * 3600_000] },
+        { sql: "SELECT COUNT(*) AS n FROM presence WHERE at > ?", args: [now - WINDOW] },
+      ],
+      "write",
+    ),
+    siteCounts(new Date(now).toISOString().slice(0, 10)),
+  ]);
   const res = NextResponse.json({
     online: Number(online.rows[0].n),
-    today: Number(today.rows[0].n),
-    members: Number(members.rows[0].n),
+    today: counts.today,
+    members: counts.members,
   });
   if (!uid && !cookieId) {
     res.cookies.set(VISITOR, visitor, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });

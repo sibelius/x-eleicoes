@@ -45,6 +45,11 @@ export default function PrivacyPage() {
           Quem abre um link de convite e os chutes do jogo de adivinhar uma bolha são contados de forma anônima (o mesmo
           identificador aleatório das visitas); quem convidou só vê quantas pessoas abriram o link.
         </li>
+        <li>
+          Pedidos para trocar de cor: as mensagens (só textos prontos) entre você e outro membro ficam guardadas, com
+          quando foram enviadas e lidas, para aparecer em Mensagens. Você pode desligar os pedidos quando quiser.
+        </li>
+        <li>As notificações push enviadas para você (título e texto), para sabermos o que foi entregue.</li>
         <li>De onde você chegou (as marcações utm dos links que o app gera, como posts no X e notificações), para saber quais links funcionam.</li>
       </ul>
 

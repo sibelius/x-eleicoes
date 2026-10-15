@@ -1,5 +1,11 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { db } from "./db";
+
+// Shared, read-heavy queries are cached in Vercel's runtime cache ("use cache: remote") for a few
+// minutes: the whole-graph ones scan every follow edge, which is most of the database's row reads.
+export const SHARED = { stale: 60, revalidate: 300, expire: 3600 };
+export const PER_USER = { stale: 60, revalidate: 120, expire: 3600 };
 
 export type Vote = "red" | "green";
 
@@ -68,6 +74,8 @@ export async function resolveUser(handle: string): Promise<{ id: string; usernam
 
 /** Every real (X) member for the public directory; votes are public. */
 export async function listMembers(q = ""): Promise<Me[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
   const r = await client.execute({
     sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
@@ -106,6 +114,15 @@ export const BUBBLE_TALLIES_SQL = `WITH v AS (SELECT id, vote FROM users WHERE v
        FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
        GROUP BY a`;
 
+/** Every member's bubble tally (cached: it scans every edge). */
+export async function bubbleTallies(): Promise<{ id: string; red: number; total: number }[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
+  const client = await db();
+  const r = await client.execute(BUBBLE_TALLIES_SQL);
+  return r.rows.map((row) => ({ id: String(row.id), red: Number(row.red), total: Number(row.total) }));
+}
+
 export type Ranked = Me & { tally: Tally; redPct: number };
 
 /**
@@ -113,16 +130,15 @@ export type Ranked = Me & { tally: Tally; redPct: number };
  * or came in through an invite), plus invite counts, for /ranking.
  */
 export async function getRankings(minVotes = 3) {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
-  const [tallies, members] = await client.batch(
-    [
-      BUBBLE_TALLIES_SQL,
-      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
+  const [tallies, members] = await Promise.all([
+    bubbleTallies(),
+    client.execute(`SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
          (SELECT COUNT(*) FROM users i WHERE i.invited_by = u.id) AS invites
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
-    ],
-    "read",
-  );
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`),
+  ]);
   const byId = new Map(
     members.rows.map((r) => [
       String(r.id),
@@ -137,11 +153,11 @@ export async function getRankings(minVotes = 3) {
     ]),
   );
   const ranked: Ranked[] = [];
-  for (const r of tallies.rows) {
-    const m = byId.get(String(r.id));
-    const total = Number(r.total);
+  for (const r of tallies) {
+    const m = byId.get(r.id);
+    const total = r.total;
     if (!m || total < minVotes) continue;
-    const red = Number(r.red);
+    const red = r.red;
     ranked.push({ ...m, tally: { red, green: total - red, total }, redPct: red / total });
   }
   const top = (xs: Ranked[], score: (r: Ranked) => number) =>
@@ -171,6 +187,8 @@ type Row = {
 };
 
 async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
   const r = await client.execute({
     sql: `
@@ -197,7 +215,19 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
       LIMIT :lim`,
     args: { uid, lim: 5000 },
   });
-  const rows = r.rows as unknown as Row[];
+  // Plain objects: libSQL rows aren't serializable into the cache.
+  const rows: Row[] = r.rows.map((x) => ({
+    id: String(x.id),
+    member: Number(x.member),
+    username: (x.username as string | null) ?? null,
+    name: (x.name as string | null) ?? null,
+    avatar: (x.avatar as string | null) ?? null,
+    vote: (x.vote as Vote | null) ?? null,
+    voted_at: x.voted_at == null ? null : Number(x.voted_at),
+    following: Number(x.following),
+    follower: Number(x.follower),
+    invite: Number(x.invite),
+  }));
   let nonMembers = 0;
   return rows.filter((row) => row.member || nonMembers++ < nonMemberLimit);
 }
@@ -247,6 +277,8 @@ export async function getNetwork(uid: string) {
  * (placed toward the side of the voters they're linked to).
  */
 export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNode[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
   const base = (n: Partial<NetworkNode> & Pick<NetworkNode, "id">): NetworkNode => ({
     username: null,
@@ -351,6 +383,8 @@ export type TimelineEvent = { at: number; kind: "joined" | "voted"; username: st
  * (rebuilt from join and vote times, so it covers history from day one; the latest vote counts).
  */
 export async function getTimeline(uid: string) {
+  "use cache: remote";
+  cacheLife(PER_USER);
   const client = await db();
   const r = await client.execute({
     sql: `WITH rel AS (
@@ -400,6 +434,8 @@ export type BubbleSize = { accounts: number; members: number; voted: number; sil
 
 /** How big a bubble is: every account in it, who joined the app, who voted, and who joined without voting. */
 export async function getBubbleSize(uid: string | null): Promise<BubbleSize> {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
   // uid null = the bubble of bubbles: every member plus every account linked to one.
   const rel = uid
@@ -468,6 +504,8 @@ export type Famous = { id: string; username: string; name: string; avatar: strin
 
 /** Accounts that haven't joined but that the most members follow, with how those followers vote. */
 export async function getFamous(limit = 24): Promise<Famous[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
   const r = await client.execute({
     sql: `SELECT p.id, p.username, p.name, p.avatar, COUNT(*) AS followers,
@@ -504,6 +542,8 @@ const AVATAR_SUFFIX = "_normal.jpg";
  * Avatars drop the common prefix to keep the payload small.
  */
 export async function getMapPoints() {
+  "use cache: remote";
+  cacheLife(SHARED);
   const client = await db();
   const [members, others] = await client.batch(
     [

@@ -11,6 +11,9 @@ const TABS = [
   { href: "/admin/centro", label: "Quem é o centro" },
   { href: "/admin/convites", label: "Convites" },
   { href: "/admin/polarizacao", label: "Polarização" },
+  { href: "/admin/mensagens", label: "Mensagens" },
+  { href: "/admin/push", label: "Push" },
+  { href: "/admin/banco", label: "Banco de dados" },
 ];
 
 export function AdminNav() {
