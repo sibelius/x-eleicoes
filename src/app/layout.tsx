@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 
-const REPO_URL = "https://github.com/sibelius/x-eleicoes";
+const REPO_URL = "https://github.com/sibelius/x-green-red";
 
 export const metadata: Metadata = {
   title: "Minha Bolha",
@@ -44,7 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </a>{" "}
           · Código aberto ·{" "}
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="underline">
-            github.com/sibelius/x-eleicoes
+            github.com/sibelius/x-green-red
           </a>
         </footer>
         <Analytics />
