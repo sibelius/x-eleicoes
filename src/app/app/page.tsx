@@ -11,6 +11,7 @@ import { viewCount } from "@/lib/views";
 import { getBubbleSize, getMe, getNetwork, getTimeline, inviteCount } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
+import { OtherSide } from "@/components/OtherSide";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pushPublicKey } from "@/lib/push";
 import { appUrl, getUserId } from "@/lib/session";
@@ -119,6 +120,11 @@ async function Dashboard() {
           <div className="order-1 lg:order-none">
             <VotePanel me={me} />
           </div>
+          {me.vote && (
+            <div className="order-4 lg:order-none">
+              <OtherSide me={{ ...me, vote: me.vote }} nodes={nodes} base={base} />
+            </div>
+          )}
           <section className="order-4 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="text-lg font-semibold">Chame sua rede</h2>
             <p className="mt-1 text-sm text-subtle">

@@ -85,3 +85,11 @@ export function inviteBadge(invites: number) {
 }
 
 export const BADGE_STEPS = [3, 10, 25];
+
+/** Challenge someone in your network who votes the other way to compare bubbles. */
+export function challengeTweetUrl(base: string, me: { username: string; vote: "lula" | "bolsonaro" }, them: string) {
+  const mine = me.vote === "lula" ? "Lula" : "Bolsonaro";
+  const theirs = me.vote === "lula" ? "Bolsonaro" : "Lula";
+  const text = `@${them} você vota ${theirs}, eu voto ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(me.username, them)}`)}`;
+}
