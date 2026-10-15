@@ -133,6 +133,50 @@ const SCHEMA = [
     uid TEXT PRIMARY KEY,
     at INTEGER NOT NULL
   )`,
+  // Someone opened an invite link (/?ref=): unique visitors per inviter per day.
+  `CREATE TABLE IF NOT EXISTS invite_opens (
+    ref TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    day TEXT NOT NULL,
+    PRIMARY KEY (ref, visitor, day)
+  )`,
+  // Last "someone opened your invite" push per inviter, at most one every 30 minutes.
+  `CREATE TABLE IF NOT EXISTS open_pushes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
+  // Last "someone passed you in the invite race" push per member, at most one every 2 hours.
+  `CREATE TABLE IF NOT EXISTS race_pushes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
+  // Every pick of a side (from_vote NULL = first pick), for the public "quem virou" feed.
+  `CREATE TABLE IF NOT EXISTS vote_changes (
+    uid TEXT NOT NULL,
+    from_vote TEXT,
+    to_vote TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS vote_changes_at ON vote_changes (at)`,
+  // Picks made before vote_changes existed: one row each, at the time of the current vote.
+  `INSERT INTO vote_changes (uid, from_vote, to_vote, at)
+   SELECT u.id, NULL, u.vote, u.voted_at FROM users u
+   WHERE u.vote IS NOT NULL AND u.voted_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM vote_changes c WHERE c.uid = u.id)`,
+  // The guessing game on a bubble: one guess (% Green) per visitor per bubble.
+  `CREATE TABLE IF NOT EXISTS guesses (
+    bubble TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    guess INTEGER NOT NULL,
+    actual INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (bubble, visitor)
+  )`,
+  // One-off pushes (e.g. the live night) sent at most once per member.
+  `CREATE TABLE IF NOT EXISTS once_pushes (
+    key TEXT NOT NULL,
+    uid TEXT NOT NULL,
+    PRIMARY KEY (key, uid)
+  )`,
 ];
 
 export async function db(): Promise<Client> {

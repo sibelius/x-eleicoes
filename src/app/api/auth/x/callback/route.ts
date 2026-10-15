@@ -1,7 +1,8 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
-import { notifyInviteJoined, notifyNetworkJoined } from "@/lib/push";
+import { notifyInviteJoined, notifyNetworkJoined, notifyRacePassed } from "@/lib/push";
+import { passedBy } from "@/lib/race";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
 import { UTM_COOKIE, recordUtm, rememberedUtm } from "@/lib/utm";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
@@ -70,6 +71,10 @@ export async function GET(req: NextRequest) {
         if (!inviter) return; // the ref wasn't a member
         const sent = await notifyInviteJoined(inviter, who, origin).catch((e) => (console.error("[push] invite", e), 0));
         console.log(`[push] @${who.username} joined via ${inviter}, notified ${sent}`);
+        // The invite race: whoever the inviter just overtook this week hears about it.
+        const passed = await passedBy(inviter, who.id).catch((e) => (console.error("[race]", e), []));
+        const raced = await notifyRacePassed(inviter, passed, origin).catch((e) => (console.error("[push] race", e), 0));
+        if (passed.length) console.log(`[push] race: ${inviter} passed ${passed.map((p) => p.username).join(", ")}, notified ${raced}`);
       });
     }
     // Scraping can take minutes: run it after the redirect instead of blocking the login.

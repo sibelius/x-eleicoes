@@ -8,7 +8,7 @@ import { PushToggle } from "@/components/PushToggle";
 import { TallyBar } from "@/components/TallyBar";
 import { VotePanel } from "@/components/VotePanel";
 import { VoteModal } from "@/components/VoteModal";
-import { BADGE_STEPS, inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
+import { BADGE_STEPS, daysToBigDay, inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl, wrappedPath } from "@/lib/links";
 import { viewCount } from "@/lib/views";
 import { getBubbleSize, getMe, getNetwork, getTimeline, inviteCount } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
@@ -21,6 +21,11 @@ import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
 import { Tour } from "@/components/Tour";
 import { NetworkAnalytics } from "@/components/NetworkAnalytics";
+import { Missing } from "@/components/play/Missing";
+import { Twins } from "@/components/play/Twins";
+import { BridgeCard } from "@/components/play/BridgeCard";
+import { getBridge, getMissing, getTwins, inviteOpens } from "@/lib/social";
+import { getRace } from "@/lib/race";
 
 export default function AppPage() {
   return (
@@ -40,16 +45,22 @@ async function Dashboard() {
   if (!me) redirect("/");
   const { nodes, tally, counts } = await getNetwork(uid);
   const base = appUrl();
-  const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const [views, invites, timeline, size, admin] = await Promise.all([
+  const [views, invites, timeline, size, admin, missing, twins, bridge, race, opened] = await Promise.all([
     viewCount(me.id),
     inviteCount(me.id),
     getTimeline(me.id),
     getBubbleSize(me.id),
     isAdmin(),
+    getMissing(me.id),
+    getTwins(me.id),
+    getBridge(me.id),
+    getRace(),
+    inviteOpens(me.id),
   ]);
+  const myRace = race.racers.find((r) => r.id === me.id);
+  const bigDay = daysToBigDay();
   const nextBadge = BADGE_STEPS.find((n) => n > invites);
 
   return (
@@ -77,6 +88,12 @@ async function Dashboard() {
           )}
           <Link href="/ranking" className="text-subtle underline">
             Ranking
+          </Link>
+          <Link href="/ao-vivo" className="text-subtle underline">
+            Ao vivo
+          </Link>
+          <Link href="/virada" className="text-subtle underline">
+            Quem virou
           </Link>
           <Link href="/grafo" className="text-subtle underline">
             A rede
@@ -118,6 +135,9 @@ async function Dashboard() {
               <a className="rounded-full border border-line px-4 py-2" href={sharePath(me.username)} target="_blank">
                 Ver página pública
               </a>
+              <Link data-tour="wrapped" className="rounded-full border border-line px-4 py-2" href={wrappedPath(me.username)}>
+                🎁 Sua retrospectiva
+              </Link>
             </div>
             <form action="/c" data-tour="compare" className="mt-3 flex gap-2 text-sm">
               <input type="hidden" name="a" value={me.username} />
@@ -150,6 +170,12 @@ async function Dashboard() {
               <OtherSide me={{ ...me, vote: me.vote }} nodes={nodes} base={base} />
             </div>
           )}
+          <div className="order-4 lg:order-none">
+            <Twins twin={twins.twin} opposite={twins.opposite} base={base} owner={me.username} own />
+          </div>
+          <div className="order-4 lg:order-none">
+            <BridgeCard bridge={bridge} own />
+          </div>
           <section data-tour="invite" className="order-4 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="text-lg font-semibold">Chame sua rede</h2>
             <p className="mt-1 text-sm text-subtle">
@@ -164,6 +190,20 @@ async function Dashboard() {
                 </span>
               )}
             </p>
+            <p className="mt-1 text-sm text-subtle">
+              👀 {opened} {opened === 1 ? "pessoa abriu" : "pessoas abriram"} seu link
+            </p>
+            <Link data-tour="race-me" href="/ranking" className="mt-2 block rounded-xl bg-muted p-3 text-sm">
+              🏁{" "}
+              {myRace ? (
+                <>
+                  Você está em <b>{myRace.rank}º</b> na corrida dos convites da semana ({myRace.invites})
+                </>
+              ) : (
+                <>Corrida dos convites: traga 1 pessoa esta semana e entre no ranking</>
+              )}
+              {bigDay > 0 && <span className="block text-xs text-subtle">Faltam {bigDay} {bigDay === 1 ? "dia" : "dias"} para 25/10</span>}
+            </Link>
             <code className="mt-2 block truncate rounded-lg bg-muted px-2 py-1.5 text-xs">{inviteLink(base, me.id)}</code>
             <a
               className="mt-3 inline-block rounded-full bg-fg px-4 py-2 text-sm text-bg"
@@ -187,25 +227,7 @@ async function Dashboard() {
                 </a>
               </div>
             )}
-            {pendingMembers.length > 0 && (
-              <ul className="mt-4 grid gap-2 text-sm">
-                {pendingMembers.map((n) => (
-                  <li key={n.id} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate">
-                      {n.name} <span className="text-subtle">@{n.username}</span>
-                    </span>
-                    <a
-                      className="shrink-0 rounded-full border border-line px-3 py-1"
-                      href={inviteTweetUrl(base, me.id, n.username)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Chamar
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <Missing rows={missing} base={base} uid={me.id} />
           </section>
           <div className="order-4 lg:order-none">
             <NetworkAnalytics username={me.username} />

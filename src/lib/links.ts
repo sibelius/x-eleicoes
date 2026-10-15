@@ -111,3 +111,51 @@ export function challengeTweetUrl(base: string, me: { username: string; vote: "r
 export const AD_DM_URL = `https://x.com/messages/compose?recipient_id=2313873457&text=${encodeURIComponent(
   "Olá! Quero anunciar na Minha Bolha. Meu produto/marca: ",
 )}`;
+
+/** The big day (Oct 25, 2026, midnight in Brasília). Countdowns aim here. */
+export const BIG_DAY = Date.UTC(2026, 9, 25, 3);
+
+/** Whole days left until the big day (0 on the day itself). */
+export function daysToBigDay(now = Date.now()) {
+  return Math.max(0, Math.ceil((BIG_DAY - now) / 86_400_000));
+}
+
+/** The evening of the big day (17h–3h Brasília): /mapa turns into a live room. */
+export function isLiveNight(now = Date.now()) {
+  return now >= BIG_DAY + 17 * 3600_000 && now < BIG_DAY + 27 * 3600_000;
+}
+
+/** "@fulano, falta você na minha bolha": a personal invite for someone you follow who hasn't joined. */
+export function missingTweetUrl(base: string, uid: string, username: string) {
+  const text = `@${username} falta você na minha bolha 🫧 Entra com o X e escolhe: Vermelho ou Verde? 🔴🟢`;
+  const url = withUtm(inviteLink(base, uid), "missing");
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+}
+
+/** "Meu gêmeo de bolha é @x": the most similar network, or the most similar one on the other side. */
+export function twinTweetUrl(base: string, me: string, them: string, similarity: number, opposite: boolean) {
+  const p = Math.max(1, Math.round(similarity * 100));
+  const text = opposite
+    ? `@${them} e eu temos ${p}% das redes do X em comum… e escolhemos lados diferentes 👀 Quem é o seu gêmeo do outro lado?`
+    : `Meu gêmeo de bolha no X é @${them}: ${p}% das nossas redes em comum 🫧 Quem é o seu?`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${base}${comparePath(me, them)}`, opposite ? "twin-opposite" : "twin"))}`;
+}
+
+export function wrappedPath(username: string) {
+  return `/w/${encodeURIComponent(username)}`;
+}
+
+/** Post the "retrospectiva" card (its page has the image). */
+export function wrappedTweetUrl(base: string, username: string, own: boolean, closed: number, percentile: number) {
+  const text = own
+    ? `Minha bolha no X é ${closed}% de um lado só, mais fechada que ${percentile}% das bolhas 🫧 Veja a retrospectiva da sua:`
+    : `A bolha de @${username} no X é ${closed}% de um lado só, mais fechada que ${percentile}% das bolhas 🫧`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${base}${wrappedPath(username)}`, "wrapped", { content: own ? "own" : "other" }))}`;
+}
+
+/** The guessing game: brag about how close you got, dare others to beat it. */
+export function guessTweetUrl(base: string, username: string, guess: number, actual: number) {
+  const score = 100 - Math.abs(guess - actual);
+  const text = `Chutei ${guess}% Verde na bolha de @${username} no X e era ${actual}%: acertei ${score}/100 🎯 Duvido chegar mais perto:`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${base}${sharePath(username)}`, "guess"))}`;
+}

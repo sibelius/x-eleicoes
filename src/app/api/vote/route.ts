@@ -23,6 +23,10 @@ export async function POST(req: Request) {
   });
   const previous = (before.rows[0]?.vote as "red" | "green" | null | undefined) ?? null;
   if (previous !== vote) {
+    await client.execute({
+      sql: "INSERT INTO vote_changes (uid, from_vote, to_vote, at) VALUES (?, ?, ?, ?)",
+      args: [uid, previous, vote, Date.now()],
+    });
     const origin = appUrl(req);
     after(() =>
       // A switch (Red → Green or Green → Red) gets its own message.

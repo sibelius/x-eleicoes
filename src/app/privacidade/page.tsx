@@ -37,6 +37,14 @@ export default function PrivacyPage() {
           é dono de uma bolha vê o seu @ se você estiver olhando a bolha dele agora. Visitantes sem login aparecem só
           como número.
         </li>
+        <li>
+          O histórico das suas escolhas (quando escolheu e se trocou de lado), que aparece em Quem virou e Ao vivo com o
+          seu @, como a própria escolha.
+        </li>
+        <li>
+          Quem abre um link de convite e os chutes do jogo de adivinhar uma bolha são contados de forma anônima (o mesmo
+          identificador aleatório das visitas); quem convidou só vê quantas pessoas abriram o link.
+        </li>
         <li>De onde você chegou (as marcações utm dos links que o app gera, como posts no X e notificações), para saber quais links funcionam.</li>
       </ul>
 

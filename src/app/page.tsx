@@ -6,6 +6,7 @@ import { devLoginEnabled, getUserId } from "@/lib/session";
 import { xConfigured } from "@/lib/x";
 import { oauth1Configured } from "@/lib/x-oauth1";
 import Link from "next/link";
+import { InviteOpenBeacon } from "@/components/play/InviteOpenBeacon";
 
 const ERRORS: Record<string, string> = {
   login: "Não foi possível entrar com o X. Tente de novo.",
@@ -53,6 +54,7 @@ async function Actions({ searchParams }: { searchParams: PageProps<"/">["searchP
   return (
     <div className="mt-8">
       {erro && <p className="mb-4 rounded-xl bg-muted p-3 text-sm">{erro}</p>}
+      {ref && <InviteOpenBeacon inviter={ref} />}
       <div className="flex flex-wrap gap-3">
         {(oauth1Configured() || xConfigured()) && (
           <a href={loginHref} className="rounded-full bg-fg px-6 py-3 font-semibold text-bg">

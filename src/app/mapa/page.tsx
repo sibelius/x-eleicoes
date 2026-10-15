@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { GlobalMap } from "@/components/GlobalMap";
 import { Tour } from "@/components/Tour";
+import { LiveRoom } from "@/components/play/LiveRoom";
+import { isLiveNight } from "@/lib/links";
 import { getMe } from "@/lib/network";
+import { getRoom } from "@/lib/room";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -28,10 +32,16 @@ export default function MapPage({ searchParams }: PageProps<"/mapa">) {
         <Link href="/grafo" className="text-subtle underline">
           A rede
         </Link>
+        <Link href="/ao-vivo" className="text-subtle underline">
+          Ao vivo
+        </Link>
         <span className="ml-auto">
           <Tour name="map" />
         </span>
       </nav>
+      <Suspense fallback={null}>
+        <LiveStrip searchParams={searchParams} />
+      </Suspense>
       <Suspense fallback={<div className="shimmer mx-3 mb-3 flex-1 rounded-xl" />}>
         <Map searchParams={searchParams} />
       </Suspense>
@@ -48,4 +58,12 @@ async function Map({ searchParams }: { searchParams: PageProps<"/mapa">["searchP
     center = (uid && (await getMe(uid))?.username) || "";
   }
   return <GlobalMap title="Mapa de todas as bolhas" center={center || null} page />;
+}
+
+// On the evening of the big day (or with ?aovivo=1) the map becomes a live room: the scoreboard sits on top.
+async function LiveStrip({ searchParams }: { searchParams: PageProps<"/mapa">["searchParams"] }) {
+  const sp = await searchParams;
+  await connection();
+  if (!isLiveNight() && sp.aovivo !== "1") return null;
+  return <LiveRoom initial={await getRoom()} compact />;
 }

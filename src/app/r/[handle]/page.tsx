@@ -5,12 +5,16 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { SIDE, sharePath, shareTweetUrl, withUtm } from "@/lib/links";
+import { SIDE, sharePath, shareTweetUrl, withUtm, wrappedPath } from "@/lib/links";
 import { getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
-import { appUrl } from "@/lib/session";
+import { appUrl, getUserId } from "@/lib/session";
+import { getBridge, getTwins } from "@/lib/social";
+import { GuessHidden, GuessPanel, GuessProvider } from "@/components/play/Guess";
+import { Twins } from "@/components/play/Twins";
+import { BridgeCard } from "@/components/play/BridgeCard";
 import { viewCount } from "@/lib/views";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import Link from "next/link";
@@ -49,14 +53,19 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
-  const [views, invites, timeline, size] = await Promise.all([
+  const [views, invites, timeline, size, viewer, twins, bridge] = await Promise.all([
     viewCount(user.id),
     inviteCount(user.id),
     getTimeline(user.id),
     getBubbleSize(user.id),
+    getUserId(),
+    share.member ? getTwins(user.id) : null,
+    share.member ? getBridge(user.id) : null,
   ]);
+  // The guessing game: everyone but the owner guesses before seeing a bubble with a few picks.
+  const game = viewer !== user.id && share.tally.total >= 3;
   return (
-    <>
+    <GuessProvider bubble={user.id} on={game}>
       <div data-tour="r-header" className="flex items-center gap-3">
         {share.user.avatar && <img src={share.user.avatar} alt="" className="h-12 w-12 rounded-full" />}
         <div>
@@ -94,12 +103,15 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       <div className="mt-2">
         <Tour name="bubble" />
       </div>
-      <div data-tour="r-tally" className="mt-6 rounded-2xl border border-line bg-card p-4">
-        <TallyBar tally={share.tally} />
-        <p className="mt-2 text-xs text-subtle">
-          👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} esta bolha
-        </p>
-      </div>
+      <GuessPanel username={share.user.username} base={appUrl()} />
+      <GuessHidden>
+        <div data-tour="r-tally" className="mt-6 rounded-2xl border border-line bg-card p-4">
+          <TallyBar tally={share.tally} />
+          <p className="mt-2 text-xs text-subtle">
+            👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} esta bolha
+          </p>
+        </div>
+      </GuessHidden>
       <ViewBeacon ids={[user.id]} />
       <a
         data-tour="r-mine"
@@ -124,10 +136,16 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       >
         Comparar com a minha bolha
       </a>
+      {share.member && (
+        <Link data-tour="wrapped" href={wrappedPath(share.user.username)} className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold">
+          🎁 Retrospectiva da bolha
+        </Link>
+      )}
       <Link href="/r" className="mt-3 self-start text-sm text-subtle underline">
         Ver todas as bolhas
       </Link>
       {nodes.length > 0 && (
+        <GuessHidden>
         <div className="mt-8">
           <Bubble
             me={me}
@@ -140,6 +158,17 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
             tally={share.tally}
           />
         </div>
+        </GuessHidden>
+      )}
+      {twins && (twins.twin || twins.opposite) && (
+        <div className="mt-4">
+          <Twins twin={twins.twin} opposite={twins.opposite} base={appUrl()} owner={share.user.username} own={false} />
+        </div>
+      )}
+      {bridge && (
+        <div className="mt-4">
+          <BridgeCard bridge={bridge} own={false} />
+        </div>
       )}
       <div className="mt-4">
         <SupportStrip placement="bubble" />
@@ -148,8 +177,10 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         <BubbleSize size={size} />
       </div>
       <div data-tour="timeline" className="mt-4">
-        <Timeline {...timeline} />
+        <GuessHidden>
+          <Timeline {...timeline} />
+        </GuessHidden>
       </div>
-    </>
+    </GuessProvider>
   );
 }

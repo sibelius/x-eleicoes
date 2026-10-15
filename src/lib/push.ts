@@ -1,8 +1,9 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
-import { BADGE_STEPS, SIDE, pct, sharePath, withUtm } from "./links";
+import { BADGE_STEPS, SIDE, daysToBigDay, pct, sharePath, withUtm } from "./links";
 import { getShare } from "./network";
+import type { Racer } from "./race";
 
 export function pushPublicKey() {
   return process.env.VAPID_PUBLIC_KEY ?? null;
@@ -241,6 +242,96 @@ export async function sendDailySummaries(origin: string) {
       url: `${origin}/app`,
       campaign: "daily",
     });
+  }
+  return { users: subs.rows.length, sent };
+}
+
+/** Claims a per-member slot (`table` keyed by uid) unless one was claimed in the last `ms`; true when claimed. */
+async function throttle(table: "open_pushes" | "race_pushes", uid: string, ms: number) {
+  const client = await db();
+  const now = Date.now();
+  const claim = await client.execute({
+    sql: `INSERT INTO ${table} (uid, at) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET at = excluded.at WHERE ${table}.at < ?`,
+    args: [uid, now, now - ms],
+  });
+  return claim.rowsAffected > 0;
+}
+
+/** Someone opened your invite link (at most one push every 30 minutes): it's working, keep posting it. */
+export async function notifyInviteOpened(ref: string, origin: string) {
+  if (!ready() || !(await throttle("open_pushes", ref, 30 * 60 * 1000))) return 0;
+  const client = await db();
+  const day = new Date().toISOString().slice(0, 10);
+  const [today, total, joined] = await client.batch(
+    [
+      { sql: "SELECT COUNT(*) AS n FROM invite_opens WHERE ref = ? AND day = ?", args: [ref, day] },
+      { sql: "SELECT COUNT(DISTINCT visitor) AS n FROM invite_opens WHERE ref = ?", args: [ref] },
+      { sql: "SELECT COUNT(*) AS n FROM users WHERE invited_by = ?", args: [ref] },
+    ],
+    "read",
+  );
+  const n = Number(today.rows[0].n);
+  const j = Number(joined.rows[0].n);
+  return sendTo(ref, {
+    title: "Alguém abriu o seu convite 👀",
+    body:
+      `${n} ${n === 1 ? "pessoa abriu" : "pessoas abriram"} seu link hoje (${Number(total.rows[0].n)} no total)` +
+      (j ? `, ${j} já ${j === 1 ? "entrou" : "entraram"}.` : ". Falta entrarem!"),
+    url: `${origin}/app`,
+    campaign: "invite-opened",
+  });
+}
+
+/** The inviter just passed these members in this week's invite race: tell each their new spot (one every 2 hours). */
+export async function notifyRacePassed(inviter: string, passed: Racer[], origin: string) {
+  if (!ready() || !passed.length) return 0;
+  const client = await db();
+  const who = (await client.execute({ sql: "SELECT username FROM users WHERE id = ?", args: [inviter] })).rows[0]?.username;
+  if (!who) return 0;
+  const days = daysToBigDay();
+  let sent = 0;
+  for (const p of passed) {
+    if (!(await throttle("race_pushes", p.id, 2 * 3600_000))) continue;
+    sent += await sendTo(p.id, {
+      title: `@${who} te passou na corrida dos convites 🏁`,
+      body: `Você caiu para ${p.rank}º na semana.${days ? ` Faltam ${days} ${days === 1 ? "dia" : "dias"} para 25/10:` : ""} chame mais gente pelo seu link.`,
+      url: `${origin}/ranking`,
+      campaign: "race",
+    });
+  }
+  return sent;
+}
+
+/** The live night: one push per subscriber with how their own bubble stands (sent once per `key`). */
+export async function sendLiveNight(origin: string, key: string) {
+  if (!ready()) return { users: 0, sent: 0 };
+  const client = await db();
+  const subs = await client.execute({
+    sql: `SELECT DISTINCT s.uid, u.vote FROM push_subs s JOIN users u ON u.id = s.uid
+          WHERE NOT EXISTS (SELECT 1 FROM once_pushes o WHERE o.key = ? AND o.uid = s.uid)`,
+    args: [key],
+  });
+  let sent = 0;
+  for (const row of subs.rows) {
+    const uid = String(row.uid);
+    const claim = await client.execute({ sql: "INSERT OR IGNORE INTO once_pushes (key, uid) VALUES (?, ?)", args: [key, uid] });
+    if (!claim.rowsAffected) continue;
+    const share = await getShare(uid);
+    if (!share) continue;
+    const t = share.tally;
+    const l = pct(t.red, t.total);
+    const split = `${l}% Vermelho × ${t.total ? 100 - l : 0}% Verde`;
+    const vote = row.vote as "red" | "green" | null;
+    const mine = vote === "red" ? t.red : t.green;
+    const theirs = vote === "red" ? t.green : t.red;
+    const payload = !vote
+      ? { title: "Hoje é o dia 🔴🟢", body: `Sua bolha: ${split}. Você ainda não escolheu um lado. Vem ver ao vivo.` }
+      : mine > theirs
+        ? { title: `Seu lado está ganhando na sua bolha ${vote === "red" ? "🔴" : "🟢"}`, body: `${split}. Acompanhe ao vivo com todo mundo.` }
+        : mine < theirs
+          ? { title: "Seu lado está perdendo na sua bolha 😬", body: `${split}. Ainda dá tempo de chamar sua rede.` }
+          : { title: "Empate na sua bolha ⚖️", body: `${split}. Quem desempata? Acompanhe ao vivo.` };
+    sent += await sendTo(uid, { ...payload, url: `${origin}/ao-vivo`, campaign: "live-night" });
   }
   return { users: subs.rows.length, sent };
 }

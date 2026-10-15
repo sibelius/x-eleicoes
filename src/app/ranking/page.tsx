@@ -7,6 +7,8 @@ import { connection } from "next/server";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pct, sharePath } from "@/lib/links";
 import { getRankings, type Me, type Ranked } from "@/lib/network";
+import { getRace } from "@/lib/race";
+import { RaceBoard } from "@/components/play/RaceBoard";
 
 export const metadata: Metadata = {
   title: "Ranking das bolhas · Minha Bolha",
@@ -21,6 +23,10 @@ export default function RankingPage() {
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Ranking das bolhas</h1>
       <p className="mt-1 text-subtle">Quem vive na bolha mais fechada? E quem está no meio do fogo cruzado?</p>
+      <p className="mt-1 text-sm">
+        <Link href="/virada" className="underline">🔁 Quem virou</Link> ·{" "}
+        <Link href="/ao-vivo" className="underline">🔴 Ao vivo 🟢</Link>
+      </p>
       <div className="mt-4">
         <SupportStrip placement="ranking" />
       </div>
@@ -33,9 +39,10 @@ export default function RankingPage() {
 
 async function Boards() {
   await connection(); // live data, not frozen at build time
-  const r = await getRankings();
+  const [r, race] = await Promise.all([getRankings(), getRace()]);
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <RaceBoard racers={race.racers} end={race.end} now={race.now} />
       <Board title="🔒 Mais fechadas no Vermelho" rows={r.closedRed} stat={(m) => `${pct(m.tally.red, m.tally.total)}% Vermelho`} color="var(--red)" />
       <Board
         title="🔒 Mais fechadas no Verde"
