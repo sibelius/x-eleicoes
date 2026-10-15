@@ -214,7 +214,14 @@ const SCHEMA = [
 ];
 
 export async function db(): Promise<Client> {
-  globalForDb.migrated ??= client.batch(SCHEMA, "write").then(() => undefined);
+  // A failed migration (e.g. its fetch was cut off when a prerender ended) must not stick: retry next call.
+  globalForDb.migrated ??= client.batch(SCHEMA, "write").then(
+    () => undefined,
+    (e) => {
+      globalForDb.migrated = undefined;
+      throw e;
+    },
+  );
   await globalForDb.migrated;
   return client;
 }
