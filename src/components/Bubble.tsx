@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode } from "@/lib/network";
 import { inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
@@ -10,6 +10,8 @@ import { inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
 const NARROW = { w: 400, h: 620 };
+const HOME = { k: 1, x: 0, y: 0 };
+const MAX_ZOOM = 8;
 
 type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 
@@ -121,19 +123,104 @@ export function Bubble({
     setLayout(sim);
   }, [visible, space, me]);
 
-  // Focus: zoom the whole bubble onto the selected dot (small dots zoom more).
+  // Pan & zoom: one view transform (translate, then scale) in viewBox units, driven by drag, pinch,
+  // ctrl/⌘ + wheel (trackpad pinch), the +/− buttons, and tapping someone to focus on them.
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [view, setView] = useState(HOME);
+  const [dragging, setDragging] = useState(false);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef({ travel: 0, moved: false, dist: 0 });
   const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
-  const k = focused ? Math.min(4, Math.max(1.8, 50 / focused.r)) : 1;
-  const zoom = focused
-    ? `translate(${cx}px, ${cy}px) scale(${k}) translate(${-focused.x!}px, ${-focused.y!}px)`
-    : "none";
 
-  function pick(n: NetworkNode) {
+  const toViewBox = useCallback(
+    (clientX: number, clientY: number) => {
+      const rect = svgRef.current!.getBoundingClientRect();
+      const s = box.w / rect.width;
+      return { x: box.x + (clientX - rect.left) * s, y: box.y + (clientY - rect.top) * s };
+    },
+    [box],
+  );
+
+  /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
+  const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
+    setView((v) => {
+      const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
+      if (k === 1) return HOME;
+      const f = k / v.k;
+      return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    // Plain wheel keeps scrolling the page; pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.005));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [toViewBox, zoomAt]);
+
+  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 1) gesture.current = { travel: 0, moved: false, dist: 0 };
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (g.dist) zoomAt(toViewBox((a.x + b.x) / 2, (a.y + b.y) / 2), dist / g.dist);
+      g.dist = dist;
+      g.moved = true;
+      setDragging(true);
+      return;
+    }
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    g.travel += Math.hypot(dx, dy);
+    if (!g.moved && g.travel < 5) return; // still a tap
+    if (!g.moved) {
+      g.moved = true;
+      setDragging(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    const s = box.w / e.currentTarget.getBoundingClientRect().width;
+    setView((v) => ({ ...v, x: v.x + dx * s, y: v.y + dy * s }));
+  }
+
+  function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) setDragging(false);
+  }
+
+  function reset() {
+    setSelected(null);
+    setView(HOME);
+  }
+
+  function pick(d: SimNode) {
+    const n = d.n!;
+    if (gesture.current.moved) return; // the end of a drag, not a tap
     // Second tap on a member opens their bubble.
-    if (selected?.id === n.id && n.member && n.username) router.push(sharePath(n.username));
-    else setSelected(n);
+    if (selected?.id === n.id && n.member && n.username) return router.push(sharePath(n.username));
+    setSelected(n);
+    // Focus: zoom onto the dot (small dots zoom more).
+    const k = Math.min(4, Math.max(1.8, 50 / d.r));
+    setView({ k, x: cx - k * d.x!, y: cy - k * d.y! });
   }
 
   return (
@@ -144,7 +231,10 @@ export function Bubble({
           {filters.map(([k, label]) => (
             <button
               key={k}
-              onClick={() => setFilter(k)}
+              onClick={() => {
+                setFilter(k);
+                reset();
+              }}
               className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
             >
               {label}
@@ -158,97 +248,136 @@ export function Bubble({
         <Legend c="var(--none)" label="Ainda não votou" />
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
-      <svg
-        viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
-        className="h-auto w-full touch-manipulation overflow-hidden"
-        role="img"
-        aria-label={title}
-        onClick={(e) => e.target === e.currentTarget && setSelected(null)}
-      >
-        <defs>
-          {me?.avatar && (
-            <pattern id="av-me" width="1" height="1" patternContentUnits="objectBoundingBox">
-              <image href={me.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
-            </pattern>
-          )}
-          {layout?.map((d) =>
-            d.n?.avatar ? (
-              <pattern key={d.n.id} id={`av-${d.n.id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-                <image href={d.n.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
-              </pattern>
-            ) : null,
-          )}
-        </defs>
-        <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--lula)] text-base font-bold">
-          Lula
-        </text>
-        <text
-          x={box.x + box.w - 12}
-          y={box.y + 20}
-          textAnchor="end"
-          className="fill-[var(--bolso)] text-base font-bold"
+      <div className="relative">
+        <svg
+          ref={svgRef}
+          viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+          className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+          // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
+          style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
+          role="img"
+          aria-label={title}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onClick={(e) => e.target === e.currentTarget && !gesture.current.moved && reset()}
         >
-          Bolsonaro
-        </text>
-        <g className="bubble-zoom" style={{ transform: zoom }}>
-          {layout?.map((d) => {
-            const n = d.n;
-            const avatar = n ? n.avatar : me?.avatar;
-          const ring = color(n, me);
-          const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
-            // Ripple: dots pop in outward from the middle.
-            const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
-            return (
-              <g
-                key={n?.id ?? "me"}
-                style={{
-                  transform: `translate(${d.x}px, ${d.y}px)`,
-                  opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
-                }}
-                onClick={() => n && pick(n)}
-                className={`bubble-node ${n ? "cursor-pointer" : ""}`}
-              >
-                <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
-                  {/* The owner: a halo and a pulsing ring around their photo. */}
-                  {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
-                  {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
-                  {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
-                  <circle
-                    r={d.r - sw / 2}
-                    fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
-                    stroke={ring}
-                    strokeWidth={sw}
-                  />
-                  {!avatar && d.r > 9 && (
-                    <text
-                      textAnchor="middle"
-                      dy="0.35em"
-                      className="pointer-events-none fill-[var(--fg)] font-bold"
-                      style={{ fontSize: Math.min(14, d.r * 0.6) }}
-                    >
-                      {n ? initials(n.name) : centerLabel}
-                    </text>
-                  )}
-                  <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
+          <defs>
+            {me?.avatar && (
+              <pattern id="av-me" width="1" height="1" patternContentUnits="objectBoundingBox">
+                <image href={me.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+            )}
+            {layout?.map((d) =>
+              d.n?.avatar ? (
+                <pattern key={d.n.id} id={`av-${d.n.id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+                  <image href={d.n.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+                </pattern>
+              ) : null,
+            )}
+          </defs>
+          <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--lula)] text-base font-bold">
+            Lula
+          </text>
+          <text
+            x={box.x + box.w - 12}
+            y={box.y + 20}
+            textAnchor="end"
+            className="fill-[var(--bolso)] text-base font-bold"
+          >
+            Bolsonaro
+          </text>
+          <g
+            className={`bubble-zoom ${dragging ? "is-dragging" : ""}`}
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
+          >
+            {layout?.map((d) => {
+              const n = d.n;
+              const avatar = n ? n.avatar : me?.avatar;
+              const ring = color(n, me);
+              const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
+              // Ripple: dots pop in outward from the middle.
+              const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
+              return (
+                <g
+                  key={n?.id ?? "me"}
+                  style={{
+                    transform: `translate(${d.x}px, ${d.y}px)`,
+                    opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
+                  }}
+                  onClick={() => n && pick(d)}
+                  className={`bubble-node ${n ? "cursor-pointer" : ""}`}
+                >
+                  <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
+                    {/* The owner: a halo and a pulsing ring around their photo. */}
+                    {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
+                    {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
+                    {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
+                    <circle
+                      r={d.r - sw / 2}
+                      fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
+                      stroke={ring}
+                      strokeWidth={sw}
+                    />
+                    {!avatar && d.r > 9 && (
+                      <text
+                        textAnchor="middle"
+                        dy="0.35em"
+                        className="pointer-events-none fill-[var(--fg)] font-bold"
+                        style={{ fontSize: Math.min(14, d.r * 0.6) }}
+                      >
+                        {n ? initials(n.name) : centerLabel}
+                      </text>
+                    )}
+                    <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
+                  </g>
                 </g>
-              </g>
-            );
-          })}
-        </g>
-      </svg>
+              );
+            })}
+          </g>
+        </svg>
+        <div className="absolute right-1 bottom-1 flex gap-1">
+          {view.k > 1 && (
+            <ZoomButton label="Voltar ao início" onClick={reset}>
+              ⟲
+            </ZoomButton>
+          )}
+          <ZoomButton label="Diminuir zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1 / 1.6)}>
+            −
+          </ZoomButton>
+          <ZoomButton label="Aumentar zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1.6)}>
+            +
+          </ZoomButton>
+        </div>
+      </div>
       {visible.length === 0 && (
         <p className="-mt-6 mb-4 text-center text-sm text-subtle">
           {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
         </p>
       )}
       <p className="mt-1 text-xs text-subtle">
-        Toque em alguém para dar zoom
+        Arraste para mover, use a pinça ou os botões para zoom e toque em alguém para focar
         {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
       </p>
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
     </div>
+  );
+}
+
+function ZoomButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="grid h-9 w-9 place-items-center rounded-full border border-line bg-card text-lg leading-none shadow-sm"
+    >
+      {children}
+    </button>
   );
 }
 
