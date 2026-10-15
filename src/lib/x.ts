@@ -1,5 +1,6 @@
 import "server-only";
 import type { Db } from "./db";
+import { insertMany } from "./sql";
 
 // X OAuth 2.0 (Authorization Code + PKCE). Creating the app on developer.x.com is free;
 // API reads are pay-per-use since 2026 (~$0.001 for /users/me, ~$0.01 per follower/following returned).
@@ -95,18 +96,17 @@ export async function importFollowsFromApi(client: Db, token: string, uid: strin
       };
       const users = body.data ?? [];
       if (users.length) {
+        // Same id twice in one upsert is an error on Postgres: keep the last.
+        const unique = [...new Map(users.map((u) => [u.id, u])).values()];
         await client.batch(
-          users.flatMap((u) => [
-            {
-              sql: "INSERT OR IGNORE INTO edges (src, dst) VALUES (?, ?)",
-              args: kind === "following" ? [uid, u.id] : [u.id, uid],
-            },
-            {
-              sql: `INSERT INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar`,
-              args: [u.id, u.username, u.name, u.profile_image_url ?? null],
-            },
-          ]),
+          [
+            ...insertMany("INSERT OR IGNORE INTO edges (src, dst)", unique.map((u) => (kind === "following" ? [uid, u.id] : [u.id, uid]))),
+            ...insertMany(
+              "INSERT INTO profiles (id, username, name, avatar)",
+              unique.map((u) => [u.id, u.username, u.name, u.profile_image_url ?? null]),
+              "ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar",
+            ),
+          ],
           "write",
         );
       }

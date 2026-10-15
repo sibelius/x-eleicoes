@@ -1,8 +1,8 @@
 import "server-only";
 import { createClient } from "@libsql/client";
 import postgres from "postgres";
-import { PG_SCHEMA, SQLITE_SCHEMA } from "./schema";
-import { libsqlDb, mirrored, pgDb, type Db } from "./sql";
+import { PG_TABLES, SQLITE_SCHEMA } from "./schema";
+import { ensureSchema, libsqlDb, mirrored, pgDb, type Db } from "./sql";
 
 // Which database serves the app, switched with environment variables (no code change, no downtime):
 //   DB_PRIMARY = "turso" (default) | "pg"   reads and writes go here
@@ -10,6 +10,7 @@ import { libsqlDb, mirrored, pgDb, type Db } from "./sql";
 // Turso: TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (local dev: the local.db file).
 // Postgres (Supabase): DATABASE_URL, the transaction pooler (port 6543).
 // Production runs on Supabase (DB_PRIMARY=pg) since 2026-10-15; Turso keeps the data as of the switch.
+// Postgres indexes are built by `pnpm db:indexes`, never by the app (see PG_TABLES).
 // To move again: DB_MIRROR=1, `pnpm db:copy`, `pnpm db:verify`, flip DB_PRIMARY, redeploy.
 
 export type { Db } from "./sql";
@@ -61,14 +62,17 @@ function pg(): Engine {
             }),
           ) as never,
       }),
-      schema: PG_SCHEMA,
+      schema: PG_TABLES, // indexes: pnpm db:indexes
     };
   })());
 }
 
-/** Creates missing tables once per instance; a failure (e.g. a fetch cut off when a prerender ended) is retried next call. */
+/**
+ * Applies the schema if it changed (one SELECT per instance otherwise; see ensureSchema).
+ * A failure (e.g. a fetch cut off when a prerender ended) is retried next call.
+ */
 function migrate(e: Engine) {
-  e.migrated ??= e.db.batch(e.schema, "write").then(
+  e.migrated ??= ensureSchema(e.db, e.schema).then(
     () => undefined,
     (err) => {
       e.migrated = undefined;

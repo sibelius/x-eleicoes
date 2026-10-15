@@ -1,5 +1,6 @@
 import "server-only";
 import type { Db } from "./db";
+import { insertMany } from "./sql";
 
 // Xquik "X (Twitter) Followers Scraper" on Apify: pay-per-result (~$0.00015 per profile), no X login.
 // https://apify.com/xquik/x-follower-scraper
@@ -60,19 +61,19 @@ export async function importFollowsFromApify(client: Db, uid: string, username: 
   await Promise.all(
     (["following", "followers"] as const).map(async (kind) => {
       const users = await scrape(username, kind, limit);
-      for (let i = 0; i < users.length; i += 500) {
+      // Same id twice in one upsert is an error on Postgres: keep the last.
+      const unique = [...new Map(users.map((u) => [u.id!, u])).values()];
+      for (let i = 0; i < unique.length; i += 500) {
+        const page = unique.slice(i, i + 500);
         await client.batch(
-          users.slice(i, i + 500).flatMap((u) => [
-            {
-              sql: "INSERT OR IGNORE INTO edges (src, dst) VALUES (?, ?)",
-              args: kind === "following" ? [uid, u.id!] : [u.id!, uid],
-            },
-            {
-              sql: `INSERT INTO profiles (id, username, name, avatar) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar`,
-              args: [u.id!, u.username!, u.name ?? u.username!, u.profilePicture ?? null],
-            },
-          ]),
+          [
+            ...insertMany("INSERT OR IGNORE INTO edges (src, dst)", page.map((u) => (kind === "following" ? [uid, u.id!] : [u.id!, uid]))),
+            ...insertMany(
+              "INSERT INTO profiles (id, username, name, avatar)",
+              page.map((u) => [u.id!, u.username!, u.name ?? u.username!, u.profilePicture ?? null]),
+              "ON CONFLICT(id) DO UPDATE SET username=excluded.username, name=excluded.name, avatar=excluded.avatar",
+            ),
+          ],
           "write",
         );
       }

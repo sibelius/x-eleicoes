@@ -11,7 +11,7 @@ export type Mode = "read" | "write";
 export interface Db {
   readonly dialect: "sqlite" | "pg";
   execute(stmt: Stmt): Promise<Result>;
-  /** Runs the statements in order, in one transaction; returns one result per statement. */
+  /** Runs the statements in order, in one transaction (Postgres: read-only batches skip it); returns one result per statement. */
   batch(stmts: Stmt[], mode?: Mode): Promise<Result[]>;
 }
 
@@ -100,12 +100,60 @@ export function pgDb(client: PgClient): Db {
   return {
     dialect: "pg",
     execute: (s) => run(client.query, s),
-    batch: (stmts) =>
+    batch: (stmts, mode) =>
       stmts.length === 0
         ? Promise.resolve([])
-        : // Sent all at once (pipelined, still run in order inside the transaction).
-          client.transaction((q) => Promise.all(stmts.map((s) => run(q, s)))),
+        : mode === "read" && !stmts.some(isWrite)
+          ? // No transaction for reads: a function frozen mid-batch can't leave one open holding locks.
+            Promise.all(stmts.map((s) => run(client.query, s)))
+          : // Sent all at once (pipelined, still run in order inside the transaction).
+            client.transaction((q) => Promise.all(stmts.map((s) => run(q, s)))),
   };
+}
+
+/**
+ * Many rows in a few statements (`INSERT ... VALUES (?, ?), (?, ?) ...`, `per` rows each) instead of
+ * one statement per row: thousands of single-row inserts kept a transaction (and its locks) open for minutes.
+ * `head` is everything before VALUES, `tail` anything after (e.g. an ON CONFLICT clause).
+ */
+export function insertMany(head: string, rows: unknown[][], tail = "", per = 500): Stmt[] {
+  const out: Stmt[] = [];
+  for (let i = 0; i < rows.length; i += per) {
+    const chunk = rows.slice(i, i + per);
+    const values = chunk.map((r) => `(${r.map(() => "?").join(", ")})`).join(", ");
+    out.push({ sql: `${head} VALUES ${values}${tail ? ` ${tail}` : ""}`, args: chunk.flat() });
+  }
+  return out;
+}
+
+/**
+ * Applies the schema only when it changed: a cold start costs one SELECT, not a round of
+ * CREATE ... IF NOT EXISTS. (CREATE INDEX locks its table even when the index exists, so it queued
+ * behind any open write and every request queued behind it, until the pooler ran out of connections.)
+ * On Postgres the DDL gives up after a few seconds of waiting for a lock instead of piling up.
+ */
+export async function ensureSchema(db: Db, schema: string[]) {
+  const hash = String(fnv1a(schema.join(";\n")));
+  const current = await db.execute({ sql: "SELECT hash FROM schema_version WHERE hash = ?", args: [hash] }).catch(() => null);
+  if (current?.rows.length) return false;
+  await db.batch(
+    [
+      ...(db.dialect === "pg" ? ["SET LOCAL lock_timeout = '5s'"] : []),
+      ...schema,
+      "CREATE TABLE IF NOT EXISTS schema_version (hash TEXT PRIMARY KEY)",
+      { sql: "DELETE FROM schema_version WHERE hash <> ?", args: [hash] },
+      // Cold starts racing here: the first one records it, the rest do nothing.
+      { sql: "INSERT OR IGNORE INTO schema_version (hash) VALUES (?)", args: [hash] },
+    ],
+    "write",
+  );
+  return true;
+}
+
+function fnv1a(text: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h;
 }
 
 // ---------- libSQL ----------

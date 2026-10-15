@@ -12,6 +12,7 @@
     "dev:prod-db": "USE_PROD_DB=1 ./scripts/with-secrets.sh next dev",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
+    "db:indexes": "./scripts/with-secrets.sh npx -y tsx scripts/db/indexes.mts",
     "db:check": "./scripts/with-secrets.sh npx -y tsx scripts/db/check-pg.mts",
     "db:copy": "USE_PROD_DB=1 ./scripts/with-secrets.sh npx -y tsx scripts/db/copy-to-pg.mts",
     "db:verify": "USE_PROD_DB=1 ./scripts/with-secrets.sh npx -y tsx scripts/db/verify.mts"

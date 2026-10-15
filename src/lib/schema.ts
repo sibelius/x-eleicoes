@@ -202,5 +202,11 @@ export const SQLITE_SCHEMA = [
 /** Postgres: same tables (BIGINT for ms timestamps and ids), without the SQLite-only backfill. */
 export const PG_SCHEMA = SQLITE_SCHEMA.filter((s) => !/^\s*INSERT/i.test(s)).map((s) => s.replace(/\bINTEGER\b/g, "BIGINT"));
 
+const isIndex = (s: string) => /^\s*CREATE\s+(UNIQUE\s+)?INDEX/i.test(s);
+/** What the app applies on Postgres by itself: tables only. CREATE INDEX locks its table, so it never runs on a request. */
+export const PG_TABLES = PG_SCHEMA.filter((s) => !isIndex(s));
+/** Postgres indexes, built once by `pnpm db:indexes` (CONCURRENTLY: no write lock). */
+export const PG_INDEXES = PG_SCHEMA.filter(isIndex);
+
 /** Every table, parents first (for copying data between databases). */
 export const TABLES = SQLITE_SCHEMA.flatMap((s) => s.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] ?? []);

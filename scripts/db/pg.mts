@@ -14,6 +14,7 @@ export function supabase() {
   const sql = postgres(process.env.DATABASE_URL, {
     prepare: false,
     max: 4,
+    onnotice: () => {}, // "already exists, skipping" on every IF NOT EXISTS
     types: { bigint: { to: 20, from: [20, 1700], serialize: (x: number) => String(x), parse: (x: string) => Number(x) } },
   });
   const db = pgDb({

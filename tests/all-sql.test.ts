@@ -30,7 +30,15 @@ function statements() {
   for (const f of files("src")) {
     if (f.endsWith("schema.ts") || f.endsWith("sql.ts")) continue;
     const src = readFileSync(f, "utf8");
+    // insertMany("INSERT ... (a, b)", rows, "ON CONFLICT ..."): the statement it builds, with one row.
+    for (const m of src.matchAll(/insertMany\(\s*"([^"]+)"/g)) {
+      const after = src.slice(m.index + m[0].length).split("insertMany(")[0].slice(0, 600);
+      const cols = m[1].match(/\(([^)]*)\)\s*$/)?.[1].split(",").length ?? 1;
+      const tail = after.match(/"(ON CONFLICT[^"]*)"/)?.[1] ?? "";
+      out.push({ file: f, sql: `${m[1]} VALUES (${Array(cols).fill("?").join(", ")}) ${tail}` });
+    }
     for (const m of src.matchAll(re)) {
+      if (/insertMany\(\s*$/.test(src.slice(0, m.index))) continue;
       let sql = m[2];
       if (!/\b(FROM|INTO|SET|VALUES)\b/.test(sql)) continue;
       let unknown = false;
