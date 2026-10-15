@@ -1,8 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
+import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
 import { accessToken } from "@/lib/x-oauth1";
+
+// The Apify follow import runs in after() and needs up to ~4 minutes.
+export const maxDuration = 300;
 
 type OAuthCookie =
   | { v: 1; token: string; secret: string; ref?: string | null }
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
       const { access_token } = await exchangeCode(code, oauth.verifier, `${origin}/api/auth/x/callback`);
       const me = await getMe(access_token);
       who = { id: me.id, username: me.username, name: me.name, avatar: me.profile_image_url ?? null };
-      if (fetchFollowsEnabled()) await importFollowsFromApi(client, access_token, me.id);
+      if (fetchFollowsEnabled() && !apifyEnabled()) await importFollowsFromApi(client, access_token, me.id);
     }
 
     const ref = oauth.ref && oauth.ref !== who.id ? oauth.ref : null;
@@ -51,6 +55,21 @@ export async function GET(req: NextRequest) {
               avatar = COALESCE(excluded.avatar, users.avatar)`,
       args: [who.id, who.username, who.name, who.avatar, ref, Date.now()],
     });
+    if (apifyEnabled()) {
+      // Scraping can take minutes: run it after the redirect instead of blocking the login.
+      after(async () => {
+        try {
+          const totals = await importFollowsFromApify(client, who.id, who.username);
+          console.log(
+            totals
+              ? `[apify] @${who.username} following=${totals.following} followers=${totals.followers}`
+              : `[apify] @${who.username} skipped, fetched recently`,
+          );
+        } catch (e) {
+          console.error("[apify] follow import failed", e);
+        }
+      });
+    }
     console.log(`[auth] login ok @${who.username} (oauth${oauth.v === 1 ? "1.0a" : "2"})`);
     const res = NextResponse.redirect(`${origin}/app`);
     res.cookies.set(sessionCookie.name, await createSessionToken(who.id), sessionCookie.options);

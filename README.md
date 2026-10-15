@@ -29,6 +29,19 @@ account's full lists. `X_FETCH_PAGE_SIZE` controls page size (default `1000`, ma
 `1000`). X API reads are pay-per-use, so larger limits can increase costs. Each
 account needs to sign in to import its own lists.
 
+### Via Apify (cheaper, works with OAuth 1.0a)
+
+Instead of the X API, the import can use the
+[Xquik X Follower Scraper](https://apify.com/xquik/x-follower-scraper) actor on
+Apify (~$0.00015 per account returned, no X login or `follows.read` scope).
+Store the token with `pnpm secrets:set APIFY_TOKEN` and set
+`APIFY_FETCH_FOLLOWS=1`. After each sign-in it scrapes up to `APIFY_FETCH_MAX`
+(default `1000`) followers and following of the signed-in handle in the
+background, so the login redirect is not delayed. Each run is capped at 240
+seconds and has a spend cap set from `APIFY_FETCH_MAX`. Results are stored in `edges` and
+`profiles`; a user fetched in the last `APIFY_REFRESH_DAYS` (default `30`) is not
+fetched again on sign-in.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

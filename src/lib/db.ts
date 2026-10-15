@@ -35,6 +35,12 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS edges_dst ON edges (dst)`,
   `CREATE INDEX IF NOT EXISTS users_invited_by ON users (invited_by)`,
+  // When a user's follow lists were last fetched from a paid source, so sign-ins don't re-fetch them.
+  `CREATE TABLE IF NOT EXISTS follow_imports (
+    uid TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+  )`,
   // Known public profile info for accounts that are not (yet) members.
   `CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY,
