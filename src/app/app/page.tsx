@@ -67,6 +67,9 @@ async function Dashboard() {
           <Link href="/r" className="text-subtle underline">
             Todas as bolhas
           </Link>
+          <Link href="/privacidade" className="text-subtle underline">
+            Meus dados
+          </Link>
           <form action="/api/auth/logout" method="post">
             <button className="text-subtle underline">Sair</button>
           </form>

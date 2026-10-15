@@ -38,6 +38,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <a href="/apoie" className="underline">
             Anuncie aqui
           </a>{" "}
+          ·{" "}
+          <a href="/privacidade" className="underline">
+            Privacidade e termos
+          </a>{" "}
           · Código aberto ·{" "}
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="underline">
             github.com/sibelius/x-eleicoes
