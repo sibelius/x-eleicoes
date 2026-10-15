@@ -1,5 +1,5 @@
 import "server-only";
-import type { Client } from "@libsql/client";
+import type { Db } from "./db";
 
 // X OAuth 2.0 (Authorization Code + PKCE). Creating the app on developer.x.com is free;
 // API reads are pay-per-use since 2026 (~$0.001 for /users/me, ~$0.01 per follower/following returned).
@@ -63,7 +63,7 @@ export async function getMe(token: string): Promise<XUser> {
 }
 
 /** Paid (pay-per-use): crawls up to X_FETCH_MAX following + followers and stores edges/profiles. */
-export async function importFollowsFromApi(client: Client, token: string, uid: string) {
+export async function importFollowsFromApi(client: Db, token: string, uid: string) {
   const configuredMax = Number(process.env.X_FETCH_MAX ?? 100);
   const max = Number.isFinite(configuredMax) ? Math.max(0, Math.floor(configuredMax)) : 100;
   const configuredPageSize = Number(process.env.X_FETCH_PAGE_SIZE ?? 1000);

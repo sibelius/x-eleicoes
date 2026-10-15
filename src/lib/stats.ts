@@ -1,6 +1,7 @@
 import "server-only";
 import { ADS } from "./ads";
 import { db } from "./db";
+import { TABLES } from "./schema";
 import { bubbleTallies, type Vote } from "./network";
 import { SITE } from "./views-shared";
 
@@ -36,11 +37,11 @@ export async function getOverview() {
         args: { site: SITE, online: now - 2 * 60_000 },
       },
       "SELECT created_at, voted_at, vote FROM users WHERE id GLOB '[0-9]*'",
-      { sql: "SELECT day, COUNT(*) AS n, SUM(visitor LIKE 'u:%') AS signed FROM views WHERE uid = ? GROUP BY day", args: [SITE] },
+      { sql: "SELECT day, COUNT(*) AS n, SUM(CASE WHEN visitor LIKE 'u:%' THEN 1 ELSE 0 END) AS signed FROM views WHERE uid = ? GROUP BY day", args: [SITE] },
       `SELECT v.uid, COUNT(DISTINCT v.visitor) AS n, COALESCE(u.username, p.username) AS username,
          COALESCE(u.avatar, p.avatar) AS avatar, u.vote
        FROM views v LEFT JOIN users u ON u.id = v.uid LEFT JOIN profiles p ON p.id = v.uid
-       WHERE v.uid <> '_site' GROUP BY v.uid ORDER BY n DESC LIMIT 15`,
+       WHERE v.uid <> '_site' GROUP BY v.uid, u.username, p.username, u.avatar, p.avatar, u.vote ORDER BY n DESC, v.uid LIMIT 15`,
       `SELECT COUNT(DISTINCT uid) AS bubbles, COUNT(*) AS n FROM views WHERE uid <> '_site'`,
     ],
     "read",
@@ -179,9 +180,9 @@ export async function getMemberGraph() {
   const [members, edges, deg] = await client.batch(
     [
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.invited_by, u.created_at
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*' ORDER BY u.id`,
       `SELECT src, dst FROM edges WHERE src IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
-         AND dst IN (SELECT id FROM users WHERE id GLOB '[0-9]*') AND src <> dst`,
+         AND dst IN (SELECT id FROM users WHERE id GLOB '[0-9]*') AND src <> dst ORDER BY src, dst`,
       `SELECT m.id,
          (SELECT COUNT(*) FROM edges WHERE src = m.id) AS following,
          (SELECT COUNT(*) FROM edges WHERE dst = m.id) AS followers
@@ -229,16 +230,16 @@ export async function getUtmStats() {
   const [rows, byDay, paths, totals] = await client.batch(
     [
       `SELECT e.source, e.medium, e.campaign, e.content,
-         SUM(e.kind = 'visit') AS visits,
+         SUM(CASE WHEN e.kind = 'visit' THEN 1 ELSE 0 END) AS visits,
          COUNT(DISTINCT CASE WHEN e.kind = 'visit' THEN e.visitor END) AS visitors,
-         SUM(e.kind = 'signup') AS signups,
-         SUM(e.kind = 'signup' AND u.vote IS NOT NULL) AS voted
+         SUM(CASE WHEN e.kind = 'signup' THEN 1 ELSE 0 END) AS signups,
+         SUM(CASE WHEN e.kind = 'signup' AND u.vote IS NOT NULL THEN 1 ELSE 0 END) AS voted
        FROM utm_events e LEFT JOIN users u ON e.kind = 'signup' AND u.id = substr(e.visitor, 3)
        GROUP BY e.source, e.medium, e.campaign, e.content`,
-      "SELECT day, SUM(kind = 'visit') AS visits, SUM(kind = 'signup') AS signups FROM utm_events GROUP BY day",
-      "SELECT path, COUNT(*) AS n FROM utm_events WHERE kind = 'visit' GROUP BY path ORDER BY n DESC LIMIT 10",
-      `SELECT COALESCE(SUM(kind = 'visit'), 0) AS visits, COUNT(DISTINCT CASE WHEN kind = 'visit' THEN visitor END) AS visitors,
-         COALESCE(SUM(kind = 'signup'), 0) AS signups FROM utm_events`,
+      "SELECT day, SUM(CASE WHEN kind = 'visit' THEN 1 ELSE 0 END) AS visits, SUM(CASE WHEN kind = 'signup' THEN 1 ELSE 0 END) AS signups FROM utm_events GROUP BY day",
+      "SELECT path, COUNT(*) AS n FROM utm_events WHERE kind = 'visit' GROUP BY path ORDER BY n DESC, path LIMIT 10",
+      `SELECT COALESCE(SUM(CASE WHEN kind = 'visit' THEN 1 ELSE 0 END), 0) AS visits, COUNT(DISTINCT CASE WHEN kind = 'visit' THEN visitor END) AS visitors,
+         COALESCE(SUM(CASE WHEN kind = 'signup' THEN 1 ELSE 0 END), 0) AS signups FROM utm_events`,
     ],
     "read",
   );
@@ -289,10 +290,10 @@ export async function getPushLog(limit = 300) {
     [
       {
         sql: `SELECT l.id, l.at, u.username, l.campaign, l.title, l.body, l.url, l.devices, l.delivered
-              FROM push_log l LEFT JOIN users u ON u.id = l.uid ORDER BY l.at DESC LIMIT ?`,
+              FROM push_log l LEFT JOIN users u ON u.id = l.uid ORDER BY l.at DESC, l.id LIMIT ?`,
         args: [limit],
       },
-      `SELECT campaign, COUNT(*) AS n, SUM(delivered > 0) AS ok, COUNT(DISTINCT uid) AS people FROM push_log GROUP BY campaign ORDER BY n DESC`,
+      `SELECT campaign, COUNT(*) AS n, SUM(CASE WHEN delivered > 0 THEN 1 ELSE 0 END) AS ok, COUNT(DISTINCT uid) AS people FROM push_log GROUP BY campaign ORDER BY n DESC, campaign`,
       { sql: "SELECT at FROM push_log WHERE at > ?", args: [since] },
     ],
     "read",
@@ -322,19 +323,22 @@ export async function getPushLog(limit = 300) {
 /** Database health: rows per table, file size, and how the main tables grew per day. */
 export async function getDbStats() {
   const client = await db();
-  const tables = (await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_litestream%' ORDER BY name")).rows.map((r) =>
-    String(r.name),
-  );
+  const pg = client.dialect === "pg";
+  const tables = TABLES;
   const counts = await client.batch(
-    tables.map((t) => `SELECT COUNT(*) AS n FROM "${t.replace(/"/g, "")}"`),
+    tables.map((t) => `SELECT COUNT(*) AS n FROM ${t}`),
     "read",
   );
   let bytes: number | null = null;
   try {
-    const [pc, ps] = await client.batch(["PRAGMA page_count", "PRAGMA page_size"], "read");
-    bytes = Number(Object.values(pc.rows[0])[0]) * Number(Object.values(ps.rows[0])[0]);
+    if (pg) {
+      bytes = Number((await client.execute("SELECT pg_database_size(current_database()) AS b")).rows[0].b);
+    } else {
+      const [pc, ps] = await client.batch(["PRAGMA page_count", "PRAGMA page_size"], "read");
+      bytes = Number(Object.values(pc.rows[0])[0]) * Number(Object.values(ps.rows[0])[0]);
+    }
   } catch {
-    bytes = null; // not every libSQL host exposes pragmas
+    bytes = null; // not every host exposes these
   }
   const since = Date.now() - 14 * 86400_000;
   const [users, votes, messages, views, extra] = await client.batch(
@@ -369,6 +373,7 @@ export async function getDbStats() {
   }
   const x = extra.rows[0];
   return {
+    engine: pg ? "Postgres (Supabase)" : "SQLite (Turso)",
     tables: tables.map((name, i) => ({ name, rows: Number(counts[i].rows[0].n) })).sort((a, b) => b.rows - a.rows),
     bytes,
     daily: [...daily.values()] as unknown as DayPoint[],

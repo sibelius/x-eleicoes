@@ -20,7 +20,7 @@ export async function getRace(now = Date.now(), exclude = ""): Promise<{ now: nu
     sql: `SELECT m.id, m.username, m.name, COALESCE(m.avatar, p.avatar) AS avatar, m.vote, COUNT(*) AS n, MAX(u.created_at) AS last
           FROM users u JOIN users m ON m.id = u.invited_by LEFT JOIN profiles p ON p.id = m.id
           WHERE u.created_at >= ? AND u.id GLOB '[0-9]*' AND u.id <> ?
-          GROUP BY m.id ORDER BY n DESC, last ASC`,
+          GROUP BY m.id, p.avatar ORDER BY n DESC, last ASC, m.id`,
     args: [start, exclude],
   });
   return {

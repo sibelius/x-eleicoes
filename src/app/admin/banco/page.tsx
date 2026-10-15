@@ -24,7 +24,7 @@ async function DbAdmin() {
   const h = s.health;
   return (
     <>
-      <PageTitle title="Banco de dados" sub="Tamanho, linhas por tabela, crescimento diário e dados faltando." />
+      <PageTitle title="Banco de dados" sub={`${s.engine}: tamanho, linhas por tabela, crescimento diário e dados faltando.`} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi label="Tamanho" value={s.bytes != null ? mb(s.bytes) : "—"} />
         <Kpi label="Linhas" value={rows} hint={`${s.tables.length} tabelas`} />

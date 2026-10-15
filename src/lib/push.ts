@@ -1,6 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
+import { newId } from "./sql";
 import { BADGE_STEPS, SIDE, daysToBigDay, pct, sharePath, withUtm } from "./links";
 import { getShare } from "./network";
 import type { Racer } from "./race";
@@ -56,8 +57,8 @@ async function send(rows: Record<string, unknown>[], payload: Payload) {
     await client
       .batch(
         [...perUser].map(([uid, u]) => ({
-          sql: "INSERT INTO push_log (at, uid, campaign, title, body, url, devices, delivered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          args: [at, uid, payload.campaign, payload.title, payload.body, payload.url, u.devices, u.delivered],
+          sql: "INSERT INTO push_log (id, at, uid, campaign, title, body, url, devices, delivered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [newId(), at, uid, payload.campaign, payload.title, payload.body, payload.url, u.devices, u.delivered],
         })),
         "write",
       )

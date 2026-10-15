@@ -9,7 +9,9 @@
     "lint": "eslint",
     "secrets:set": "./scripts/secret-set.sh",
     "secrets:list": "./scripts/secret-list.sh",
-    "dev:prod-db": "USE_PROD_DB=1 ./scripts/with-secrets.sh next dev"
+    "dev:prod-db": "USE_PROD_DB=1 ./scripts/with-secrets.sh next dev",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
@@ -20,6 +22,7 @@
     "d3-force": "^3.0.0",
     "jose": "^6.2.12",
     "next": "16.4.1",
+    "postgres": "3.4.7",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -27,6 +30,7 @@
     "web-push": "3.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.7",
     "@tailwindcss/turbopack": "^4",
     "@types/d3-force": "^3.0.10",
     "@types/node": "^20",
@@ -36,8 +40,10 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.4.1",
+    "playwright": "1.55.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "3.2.4"
   },
   "packageManager": "pnpm@10.9.0"
 }

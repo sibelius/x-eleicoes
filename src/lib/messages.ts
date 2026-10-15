@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import { newId } from "./sql";
 import { SIDE } from "./links";
 import type { Vote } from "./network";
 
@@ -94,18 +95,19 @@ export async function askBlocked(from: string, to: string): Promise<string | nul
 
 export async function saveMessage(m: { from: string; to: string; kind: "ask" | "reply"; preset: string; body: string; side: Vote | null; via: string }) {
   const client = await db();
-  const r = await client.execute({
-    sql: `INSERT INTO messages (at, from_uid, to_uid, kind, preset, body, side, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    args: [Date.now(), m.from, m.to, m.kind, m.preset, m.body, m.side, m.via],
+  const id = newId();
+  await client.execute({
+    sql: `INSERT INTO messages (id, at, from_uid, to_uid, kind, preset, body, side, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, Date.now(), m.from, m.to, m.kind, m.preset, m.body, m.side, m.via],
   });
-  return Number(r.rows[0].id);
+  return id;
 }
 
 /** Messages to `uid` not yet shown live: the toast picks them up and they're marked as delivered. */
 export async function takeLive(uid: string): Promise<Message[]> {
   const client = await db();
   const r = await client.execute({
-    sql: `${MSG_SQL} WHERE m.to_uid = ? AND m.seen_at IS NULL AND m.live_at IS NULL AND m.at > ? ORDER BY m.at LIMIT 5`,
+    sql: `${MSG_SQL} WHERE m.to_uid = ? AND m.seen_at IS NULL AND m.live_at IS NULL AND m.at > ? ORDER BY m.at, m.id LIMIT 5`,
     args: [uid, Date.now() - 7 * 86_400_000],
   });
   const out = r.rows.map(row);
@@ -129,7 +131,7 @@ export async function markSeen(uid: string, id: number) {
 export async function myMessages(uid: string, limit = 100): Promise<Message[]> {
   const client = await db();
   const r = await client.execute({
-    sql: `${MSG_SQL} WHERE m.to_uid = :uid OR m.from_uid = :uid ORDER BY m.at DESC LIMIT :lim`,
+    sql: `${MSG_SQL} WHERE m.to_uid = :uid OR m.from_uid = :uid ORDER BY m.at DESC, m.id DESC LIMIT :lim`,
     args: { uid, lim: limit },
   });
   return r.rows.map(row);
@@ -149,7 +151,7 @@ export async function isMuted(uid: string) {
 /** Admin: every message between members. */
 export async function allMessages(limit = 300): Promise<Message[]> {
   const client = await db();
-  const r = await client.execute({ sql: `${MSG_SQL} ORDER BY m.at DESC LIMIT ?`, args: [limit] });
+  const r = await client.execute({ sql: `${MSG_SQL} ORDER BY m.at DESC, m.id DESC LIMIT ?`, args: [limit] });
   return r.rows.map(row);
 }
 

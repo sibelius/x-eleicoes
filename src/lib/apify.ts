@@ -1,5 +1,5 @@
 import "server-only";
-import type { Client } from "@libsql/client";
+import type { Db } from "./db";
 
 // Xquik "X (Twitter) Followers Scraper" on Apify: pay-per-result (~$0.00015 per profile), no X login.
 // https://apify.com/xquik/x-follower-scraper
@@ -47,7 +47,7 @@ async function scrape(username: string, relation: "followers" | "following", lim
 }
 
 /** Paid (Apify): unless fetched in the last APIFY_REFRESH_DAYS (default 30), fetches up to APIFY_FETCH_MAX following + followers of @username and stores edges/profiles. */
-export async function importFollowsFromApify(client: Client, uid: string, username: string) {
+export async function importFollowsFromApify(client: Db, uid: string, username: string) {
   const last = await client.execute({
     sql: "SELECT fetched_at FROM follow_imports WHERE uid = ? AND source = 'apify'",
     args: [uid],

@@ -29,7 +29,7 @@ export async function getMissing(uid: string, limit = 10): Promise<Missing[]> {
             (SELECT COUNT(*) FROM edges f JOIN users m ON m.id = f.src WHERE f.dst = e.dst AND m.${MEMBER}) AS members
           FROM edges e JOIN profiles p ON p.id = e.dst AND p.username IS NOT NULL
           WHERE e.src = :uid AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = e.dst)
-          ORDER BY mutual DESC, members DESC
+          ORDER BY mutual DESC, members DESC, e.dst
           LIMIT :lim`,
     args: { uid, lim: limit },
   });
@@ -204,7 +204,7 @@ export async function getWrapped(uid: string): Promise<Wrapped> {
                 (SELECT COUNT(*) FROM rel JOIN users m ON m.id = rel.id WHERE m.${MEMBER} AND m.id <> :uid) AS members
               FROM rel JOIN users u ON u.id = rel.id LEFT JOIN profiles p ON p.id = u.id
               WHERE u.id <> :uid AND u.${MEMBER}
-              ORDER BY u.created_at LIMIT 1`,
+              ORDER BY u.created_at, u.id LIMIT 1`,
         args: { uid },
       },
       {
@@ -252,7 +252,7 @@ export async function getSwing() {
     [
       `SELECT c.uid AS id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, c.from_vote, c.to_vote, c.at
        FROM vote_changes c JOIN users u ON u.id = c.uid LEFT JOIN profiles p ON p.id = u.id
-       ORDER BY c.at DESC LIMIT 60`,
+       ORDER BY c.at DESC, c.uid LIMIT 60`,
       `SELECT from_vote, to_vote, COUNT(*) AS n FROM vote_changes
        WHERE from_vote IS NOT NULL AND from_vote <> to_vote GROUP BY from_vote, to_vote`,
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote

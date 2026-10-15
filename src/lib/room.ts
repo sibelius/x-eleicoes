@@ -22,7 +22,7 @@ export async function getRoom(): Promise<Room> {
   const client = await db();
   const [totals, online, hour, picks, joins] = await client.batch(
     [
-      `SELECT SUM(vote = 'red') AS red, SUM(vote = 'green') AS green, COUNT(*) AS members FROM users WHERE id GLOB '[0-9]*'`,
+      `SELECT SUM(CASE WHEN vote = 'red' THEN 1 ELSE 0 END) AS red, SUM(CASE WHEN vote = 'green' THEN 1 ELSE 0 END) AS green, COUNT(*) AS members FROM users WHERE id GLOB '[0-9]*'`,
       {
         sql: `SELECT u.vote, (u.id IS NOT NULL) AS member, COUNT(*) AS n FROM presence p LEFT JOIN users u ON p.visitor = 'u:' || u.id
               WHERE p.at > ? GROUP BY 1, 2`,
@@ -31,9 +31,9 @@ export async function getRoom(): Promise<Room> {
       { sql: "SELECT to_vote, COUNT(*) AS n FROM vote_changes WHERE at > ? GROUP BY to_vote", args: [now - 3600_000] },
       `SELECT c.from_vote, c.to_vote, c.at, u.username, COALESCE(u.avatar, p.avatar) AS avatar
        FROM vote_changes c JOIN users u ON u.id = c.uid LEFT JOIN profiles p ON p.id = u.id
-       ORDER BY c.at DESC LIMIT 20`,
+       ORDER BY c.at DESC, c.uid LIMIT 20`,
       `SELECT u.created_at AS at, u.username, COALESCE(u.avatar, p.avatar) AS avatar
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*' ORDER BY u.created_at DESC LIMIT 10`,
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*' ORDER BY u.created_at DESC, u.id LIMIT 10`,
     ],
     "read",
   );

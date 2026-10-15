@@ -63,8 +63,8 @@ export async function resolveUser(handle: string): Promise<{ id: string; usernam
   const r = await client.execute({
     // Members first; then any known X profile (famous accounts get a bubble built from members' links).
     sql: `SELECT id, username FROM users WHERE id = :h
-          UNION ALL SELECT id, username FROM users WHERE username = :h COLLATE NOCASE
-          UNION ALL SELECT id, username FROM profiles WHERE username IS NOT NULL AND (id = :h OR username = :h COLLATE NOCASE)
+          UNION ALL SELECT id, username FROM users WHERE lower(username) = lower(:h)
+          UNION ALL SELECT id, username FROM profiles WHERE username IS NOT NULL AND (id = :h OR lower(username) = lower(:h))
           LIMIT 1`,
     args: { h: handle.replace(/^@/, "") },
   });
@@ -81,8 +81,8 @@ export async function listMembers(q = ""): Promise<Me[]> {
     sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
             (SELECT COUNT(*) FROM users i WHERE i.invited_by = u.id) AS invites
           FROM users u LEFT JOIN profiles p ON p.id = u.id
-          WHERE u.id GLOB '[0-9]*' AND (:q = '' OR u.username LIKE :like OR u.name LIKE :like)
-          ORDER BY u.created_at DESC
+          WHERE u.id GLOB '[0-9]*' AND (:q = '' OR lower(u.username) LIKE lower(:like) OR lower(u.name) LIKE lower(:like))
+          ORDER BY u.created_at DESC, u.id
           LIMIT 500`,
     args: { q, like: `%${q.replace(/[%_]/g, "")}%` },
   });
@@ -110,7 +110,7 @@ export const BUBBLE_TALLIES_SQL = `WITH v AS (SELECT id, vote FROM users WHERE v
          UNION SELECT u.invited_by, v.id, v.vote FROM users u JOIN v ON v.id = u.id WHERE u.invited_by IS NOT NULL
          UNION SELECT v.id, u.id, u.vote FROM v JOIN users u ON u.invited_by = v.id WHERE u.vote IS NOT NULL
        )
-       SELECT a AS id, SUM(vote = 'red') AS red, COUNT(*) AS total
+       SELECT a AS id, SUM(CASE WHEN vote = 'red' THEN 1 ELSE 0 END) AS red, COUNT(*) AS total
        FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
        GROUP BY a`;
 
@@ -120,7 +120,9 @@ export async function bubbleTallies(): Promise<{ id: string; red: number; total:
   cacheLife(SHARED);
   const client = await db();
   const r = await client.execute(BUBBLE_TALLIES_SQL);
-  return r.rows.map((row) => ({ id: String(row.id), red: Number(row.red), total: Number(row.total) }));
+  return r.rows
+    .map((row) => ({ id: String(row.id), red: Number(row.red), total: Number(row.total) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export type Ranked = Me & { tally: Tally; redPct: number };
@@ -161,14 +163,14 @@ export async function getRankings(minVotes = 3) {
     ranked.push({ ...m, tally: { red, green: total - red, total }, redPct: red / total });
   }
   const top = (xs: Ranked[], score: (r: Ranked) => number) =>
-    [...xs].sort((a, b) => score(b) - score(a) || b.tally.total - a.tally.total).slice(0, 10);
+    [...xs].sort((a, b) => score(b) - score(a) || b.tally.total - a.tally.total || a.id.localeCompare(b.id)).slice(0, 10);
   return {
     closedRed: top(ranked.filter((r) => r.redPct >= 0.5), (r) => r.redPct),
     closedGreen: top(ranked.filter((r) => r.redPct <= 0.5), (r) => 1 - r.redPct),
     mixed: top(ranked.filter((r) => r.tally.total >= 5), (r) => -Math.abs(r.redPct - 0.5)),
     inviters: [...byId.values()]
       .filter((m) => m.invites! > 0)
-      .sort((a, b) => b.invites! - a.invites!)
+      .sort((a, b) => b.invites! - a.invites! || a.id.localeCompare(b.id))
       .slice(0, 10),
   };
 }
@@ -211,7 +213,7 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
       LEFT JOIN users u ON u.id = agg.id
       LEFT JOIN profiles p ON p.id = agg.id
       ORDER BY member DESC, (COALESCE(u.username, p.username) IS NOT NULL) DESC,
-        (agg.following + agg.follower + agg.invite) DESC
+        (agg.following + agg.follower + agg.invite) DESC, agg.id
       LIMIT :lim`,
     args: { uid, lim: 5000 },
   });
@@ -296,19 +298,19 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
   const [members, others] = await client.batch(
     [
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.voted_at
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*' ORDER BY u.id`,
       {
         sql: `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
               links AS (
                 SELECT e.dst AS id, m.vote FROM edges e JOIN m ON m.id = e.src
                 UNION ALL SELECT e.src, m.vote FROM edges e JOIN m ON m.id = e.dst
               )
-              SELECT l.id, COUNT(*) AS c, SUM(l.vote = 'red') AS red, SUM(l.vote = 'green') AS green,
+              SELECT l.id, COUNT(*) AS c, SUM(CASE WHEN l.vote = 'red' THEN 1 ELSE 0 END) AS red, SUM(CASE WHEN l.vote = 'green' THEN 1 ELSE 0 END) AS green,
                 p.username, p.name, p.avatar
               FROM links l LEFT JOIN profiles p ON p.id = l.id
               WHERE l.id NOT IN (SELECT id FROM m)
-              GROUP BY l.id
-              ORDER BY (p.username IS NOT NULL) DESC, c DESC
+              GROUP BY l.id, p.username, p.name, p.avatar
+              ORDER BY (p.username IS NOT NULL) DESC, c DESC, l.id
               LIMIT ?`,
         args: [nonMemberLimit],
       },
@@ -460,7 +462,7 @@ export async function getBubbleSize(uid: string | null): Promise<BubbleSize> {
               SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar
               FROM rel JOIN users u ON u.id = rel.id LEFT JOIN profiles p ON p.id = u.id
               WHERE u.vote IS NULL AND u.id GLOB '[0-9]*' AND u.id <> COALESCE(:uid, '')
-              ORDER BY u.created_at DESC LIMIT 60`,
+              ORDER BY u.created_at DESC, u.id LIMIT 60`,
         args: { uid },
       },
     ],
@@ -509,13 +511,13 @@ export async function getFamous(limit = 24): Promise<Famous[]> {
   const client = await db();
   const r = await client.execute({
     sql: `SELECT p.id, p.username, p.name, p.avatar, COUNT(*) AS followers,
-            SUM(u.vote = 'red') AS red, SUM(u.vote = 'green') AS green
+            SUM(CASE WHEN u.vote = 'red' THEN 1 ELSE 0 END) AS red, SUM(CASE WHEN u.vote = 'green' THEN 1 ELSE 0 END) AS green
           FROM edges e
           JOIN users u ON u.id = e.src AND u.id GLOB '[0-9]*'
           JOIN profiles p ON p.id = e.dst AND p.username IS NOT NULL
           WHERE NOT EXISTS (SELECT 1 FROM users m WHERE m.id = e.dst)
           GROUP BY p.id
-          ORDER BY followers DESC
+          ORDER BY followers DESC, p.id
           LIMIT ?`,
     args: [limit],
   });
@@ -548,16 +550,17 @@ export async function getMapPoints() {
   const [members, others] = await client.batch(
     [
       `SELECT u.id, u.username, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*' ORDER BY u.id`,
       `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
        links AS (
          SELECT e.dst AS id, m.vote FROM edges e JOIN m ON m.id = e.src
          UNION ALL SELECT e.src, m.vote FROM edges e JOIN m ON m.id = e.dst
        )
-       SELECT l.id, SUM(l.vote = 'red') AS red, SUM(l.vote = 'green') AS green, p.username, p.avatar
+       SELECT l.id, SUM(CASE WHEN l.vote = 'red' THEN 1 ELSE 0 END) AS red, SUM(CASE WHEN l.vote = 'green' THEN 1 ELSE 0 END) AS green, p.username, p.avatar
        FROM links l LEFT JOIN profiles p ON p.id = l.id
        WHERE l.id NOT IN (SELECT id FROM m)
-       GROUP BY l.id`,
+       GROUP BY l.id, p.username, p.avatar
+       ORDER BY l.id`,
     ],
     "read",
   );
