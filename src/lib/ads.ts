@@ -36,6 +36,18 @@ export const ADS = [
     image: "/ads/guara.png",
     alt: "Guara Cloud: deploy em segundos na cloud brasileira, com preços em Real.",
   },
+  {
+    name: "Woovi",
+    href: "https://woovi.com/",
+    image: "/ads/woovi.png",
+    alt: "Woovi: acelere seu negócio com a conta digital que mais entende de Pix. Regulada pelo Banco Central.",
+  },
+  {
+    name: "Avenia",
+    href: "https://avenia.io/pt-br/",
+    image: "/ads/avenia.png",
+    alt: "Avenia: borderless liquidity.",
+  },
 ];
 
 export const AD_NAMES: ReadonlySet<string> = new Set(ADS.map((a) => a.name));
