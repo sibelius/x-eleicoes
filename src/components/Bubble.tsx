@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode } from "@/lib/network";
-import { inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
+import { comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
@@ -455,6 +455,15 @@ function NodeCard({
         {n.member && n.username && (
           <Link className="rounded-full bg-fg px-3 py-1.5 text-bg" href={sharePath(n.username)}>
             Ver bolha
+          </Link>
+        )}
+        {n.member && n.username && (
+          <Link
+            className="rounded-full border border-line px-3 py-1.5"
+            // Your dashboard: you × them. Someone else's page: the viewer's own bubble × them.
+            href={!readOnly && me ? comparePath(me.username, n.username) : `/c?b=${encodeURIComponent(n.username)}`}
+          >
+            Comparar
           </Link>
         )}
         <a
