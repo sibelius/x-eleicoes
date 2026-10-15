@@ -33,14 +33,14 @@ async function Boards() {
   const r = await getRankings();
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
-      <Board title="🔒 Mais fechadas no Vermelho" rows={r.closedLula} stat={(m) => `${pct(m.tally.lula, m.tally.total)}% Vermelho`} color="var(--red)" />
+      <Board title="🔒 Mais fechadas no Vermelho" rows={r.closedRed} stat={(m) => `${pct(m.tally.red, m.tally.total)}% Vermelho`} color="var(--red)" />
       <Board
         title="🔒 Mais fechadas no Verde"
-        rows={r.closedBolsonaro}
-        stat={(m) => `${100 - pct(m.tally.lula, m.tally.total)}% Verde`}
+        rows={r.closedGreen}
+        stat={(m) => `${100 - pct(m.tally.red, m.tally.total)}% Verde`}
         color="var(--green)"
       />
-      <Board title="⚖️ Mais mistas" rows={r.mixed} stat={(m) => `${pct(m.tally.lula, m.tally.total)}% × ${100 - pct(m.tally.lula, m.tally.total)}%`} />
+      <Board title="⚖️ Mais mistas" rows={r.mixed} stat={(m) => `${pct(m.tally.red, m.tally.total)}% × ${100 - pct(m.tally.red, m.tally.total)}%`} />
       <Board title="📣 Quem mais trouxe gente" rows={r.inviters} stat={(m) => `${m.invites} ${m.invites === 1 ? "pessoa" : "pessoas"}`} />
     </div>
   );

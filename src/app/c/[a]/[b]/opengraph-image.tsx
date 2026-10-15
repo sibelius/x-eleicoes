@@ -18,7 +18,7 @@ export default async function Image({ params }: { params: Promise<{ a: string; b
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: OG.bg, color: OG.fg }}>
         {sides.map((s, i) => {
-          const l = pct(s.tally.lula, s.tally.total);
+          const l = pct(s.tally.red, s.tally.total);
           const bo = s.tally.total ? 100 - l : 0;
           return (
             <div
@@ -34,12 +34,12 @@ export default async function Image({ params }: { params: Promise<{ a: string; b
             >
               <div style={{ fontSize: 40, fontWeight: 800 }}>{`@${s.user.username}`}</div>
               <div style={{ display: "flex", gap: 24, marginTop: 8, fontSize: 36, fontWeight: 800 }}>
-                <span style={{ color: OG.lula }}>{`Vermelho ${l}%`}</span>
-                <span style={{ color: OG.bolso }}>{`Verde ${bo}%`}</span>
+                <span style={{ color: OG.red }}>{`Vermelho ${l}%`}</span>
+                <span style={{ color: OG.green }}>{`Verde ${bo}%`}</span>
               </div>
               <div style={{ display: "flex", width: 480, height: 18, marginTop: 14, borderRadius: 9, overflow: "hidden", background: OG.muted }}>
-                <div style={{ width: `${l}%`, background: OG.lula }} />
-                <div style={{ width: `${bo}%`, background: OG.bolso }} />
+                <div style={{ width: `${l}%`, background: OG.red }} />
+                <div style={{ width: `${bo}%`, background: OG.green }} />
               </div>
               {arts[i].length > 0 && <BubbleArt nodes={arts[i]} width={560} height={420} />}
             </div>

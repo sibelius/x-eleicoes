@@ -108,23 +108,23 @@ export async function sendDailySummaries(origin: string) {
   if (!ready()) return { users: 0, sent: 0 };
   const client = await db();
   const subs = await client.execute(
-    `SELECT DISTINCT s.uid, t.lula, t.bolsonaro, t.members FROM push_subs s LEFT JOIN tally_snapshots t ON t.uid = s.uid`,
+    `SELECT DISTINCT s.uid, t.red, t.green, t.members FROM push_subs s LEFT JOIN tally_snapshots t ON t.uid = s.uid`,
   );
   let sent = 0;
   for (const row of subs.rows) {
     const uid = String(row.uid);
     const share = await getShare(uid);
     if (!share) continue;
-    const now = { lula: share.tally.lula, bolsonaro: share.tally.bolsonaro, members: share.members };
+    const now = { red: share.tally.red, green: share.tally.green, members: share.members };
     await client.execute({
-      sql: `INSERT INTO tally_snapshots (uid, lula, bolsonaro, members, at) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET lula = excluded.lula, bolsonaro = excluded.bolsonaro,
+      sql: `INSERT INTO tally_snapshots (uid, red, green, members, at) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET red = excluded.red, green = excluded.green,
               members = excluded.members, at = excluded.at`,
-      args: [uid, now.lula, now.bolsonaro, now.members, Date.now()],
+      args: [uid, now.red, now.green, now.members, Date.now()],
     });
-    if (row.lula == null) continue; // first snapshot: nothing to compare with yet
-    const dl = now.lula - Number(row.lula);
-    const db_ = now.bolsonaro - Number(row.bolsonaro);
+    if (row.red == null) continue; // first snapshot: nothing to compare with yet
+    const dl = now.red - Number(row.red);
+    const db_ = now.green - Number(row.green);
     const dm = now.members - Number(row.members);
     if (!dl && !db_ && !dm) continue;
     const parts = [
@@ -132,10 +132,10 @@ export async function sendDailySummaries(origin: string) {
       dl && `${dl > 0 ? "+" : ""}${dl} Vermelho`,
       db_ && `${db_ > 0 ? "+" : ""}${db_} Verde`,
     ].filter(Boolean);
-    const l = pct(now.lula, now.lula + now.bolsonaro);
+    const l = pct(now.red, now.red + now.green);
     sent += await sendTo(uid, {
       title: "Sua bolha hoje 🔴🟢",
-      body: `${parts.join(" · ")}. Agora: ${l}% Vermelho × ${now.lula + now.bolsonaro ? 100 - l : 0}% Verde. Compartilhe!`,
+      body: `${parts.join(" · ")}. Agora: ${l}% Vermelho × ${now.red + now.green ? 100 - l : 0}% Verde. Compartilhe!`,
       url: `${origin}/app`,
     });
   }

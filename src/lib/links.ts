@@ -1,4 +1,4 @@
-export const SIDE = { lula: "Vermelho", bolsonaro: "Verde" } as const;
+export const SIDE = { red: "Vermelho", green: "Verde" } as const;
 
 export function inviteLink(base: string, uid: string) {
   return `${base}/?ref=${encodeURIComponent(uid)}`;
@@ -15,16 +15,16 @@ export function sharePath(username: string) {
   return `/r/${encodeURIComponent(username)}`;
 }
 
-export type Verdict = { label: string; side: "lula" | "bolsonaro" | null };
+export type Verdict = { label: string; side: "red" | "green" | null };
 
 /** A label people argue about: how closed the bubble is, and to which side. */
-export function bubbleVerdict(tally: { lula: number; total: number }): Verdict {
+export function bubbleVerdict(tally: { red: number; total: number }): Verdict {
   if (tally.total < 3) return { label: "Bolha em formação 🌱", side: null };
-  const l = pct(tally.lula, tally.total);
-  if (l >= 85) return { label: "Bolha fechada no Vermelho 🔒", side: "lula" };
-  if (l <= 15) return { label: "Bolha fechada no Verde 🔒", side: "bolsonaro" };
-  if (l >= 65) return { label: "Bolha inclinada pro Vermelho ↖️", side: "lula" };
-  if (l <= 35) return { label: "Bolha inclinada pro Verde ↗️", side: "bolsonaro" };
+  const l = pct(tally.red, tally.total);
+  if (l >= 85) return { label: "Bolha fechada no Vermelho 🔒", side: "red" };
+  if (l <= 15) return { label: "Bolha fechada no Verde 🔒", side: "green" };
+  if (l >= 65) return { label: "Bolha inclinada pro Vermelho ↖️", side: "red" };
+  if (l <= 35) return { label: "Bolha inclinada pro Verde ↗️", side: "green" };
   return { label: "Bolha mista ⚖️", side: null };
 }
 
@@ -32,10 +32,10 @@ export function bubbleVerdict(tally: { lula: number; total: number }): Verdict {
 export function shareTweetUrl(
   base: string,
   username: string | null,
-  tally: { lula: number; total: number },
+  tally: { red: number; total: number },
   own = false,
 ) {
-  const l = pct(tally.lula, tally.total);
+  const l = pct(tally.red, tally.total);
   const split = `${l}% Vermelho × ${tally.total ? 100 - l : 0}% Verde`;
   const v = tally.total >= 3 ? `${bubbleVerdict(tally).label} (${split})` : split;
   const text = !username
@@ -89,9 +89,9 @@ export function inviteBadge(invites: number) {
 export const BADGE_STEPS = [3, 10, 25];
 
 /** Challenge someone in your network who votes the other way to compare bubbles. */
-export function challengeTweetUrl(base: string, me: { username: string; vote: "lula" | "bolsonaro" }, them: string) {
+export function challengeTweetUrl(base: string, me: { username: string; vote: "red" | "green" }, them: string) {
   const mine = SIDE[me.vote];
-  const theirs = me.vote === "lula" ? SIDE.bolsonaro : SIDE.lula;
+  const theirs = me.vote === "red" ? SIDE.green : SIDE.red;
   const text = `@${them} você é ${theirs}, eu sou ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(me.username, them)}`)}`;
 }

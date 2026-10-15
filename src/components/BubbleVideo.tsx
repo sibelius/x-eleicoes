@@ -9,7 +9,7 @@ const S = 1080; // square: plays well in the X timeline
 const FPS = 30;
 const FORM = 6; // seconds of the bubble forming
 const HOLD = 2.5; // seconds of the final frame
-const COLORS = { bg: "#0c0c0e", fg: "#f2f2f0", subtle: "#9c9ca3", muted: "#222226", lula: "#f0444f", bolso: "#2bb56b", none: "#5d5d64" };
+const COLORS = { bg: "#0c0c0e", fg: "#f2f2f0", subtle: "#9c9ca3", muted: "#222226", red: "#f0444f", green: "#2bb56b", none: "#5d5d64" };
 
 type Dot = SimulationNodeDatum & { r: number; color: string; img: HTMLImageElement | null; me?: boolean; dim?: boolean };
 
@@ -43,7 +43,7 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
     if (!mime) return setState("unsupported");
     setState("loading");
     const top = nodes.slice(0, 140);
-    const colorOf = (v: string | null, isMe = false) => (v === "lula" ? COLORS.lula : v === "bolsonaro" ? COLORS.bolso : isMe ? COLORS.fg : COLORS.none);
+    const colorOf = (v: string | null, isMe = false) => (v === "red" ? COLORS.red : v === "green" ? COLORS.green : isMe ? COLORS.fg : COLORS.none);
     const dots: Dot[] = await Promise.all([
       ...(me ? [loadImage(me.avatar).then((img): Dot => ({ r: 46, color: colorOf(me.vote, true), img, me: true, x: 0, y: 0, fx: 0, fy: 0 }))] : []),
       ...top.map((n, i) =>
@@ -63,7 +63,7 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
       ),
     ]);
     const sim = forceSimulation(dots)
-      .force("x", forceX<Dot>((d) => (d.color === COLORS.lula ? -170 : d.color === COLORS.bolso ? 170 : 0)).strength((d) => (d.color === COLORS.none ? 0.04 : 0.1)))
+      .force("x", forceX<Dot>((d) => (d.color === COLORS.red ? -170 : d.color === COLORS.green ? 170 : 0)).strength((d) => (d.color === COLORS.none ? 0.04 : 0.1)))
       .force("y", forceY<Dot>(0).strength(0.08))
       .force("collide", forceCollide<Dot>((d) => d.r + 2).iterations(3))
       .alphaDecay(1 - Math.pow(0.001, 1 / (FORM * FPS)))
@@ -79,7 +79,7 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = new Promise<void>((resolve) => (rec.onstop = () => resolve()));
 
-    const l = pct(tally.lula, tally.total);
+    const l = pct(tally.red, tally.total);
     const b = tally.total ? 100 - l : 0;
     const verdict = bubbleVerdict(tally).label;
     let scale = 1;
@@ -124,17 +124,17 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
       const reveal = Math.min(1, Math.max(0, (t - FORM * 0.6) / (FORM * 0.4)));
       ctx.globalAlpha = reveal;
       ctx.font = "800 64px system-ui, sans-serif";
-      ctx.fillStyle = COLORS.lula;
+      ctx.fillStyle = COLORS.red;
       ctx.textAlign = "left";
       ctx.fillText(`Vermelho ${l}%`, 70, S - 150);
-      ctx.fillStyle = COLORS.bolso;
+      ctx.fillStyle = COLORS.green;
       ctx.textAlign = "right";
       ctx.fillText(`Verde ${b}%`, S - 70, S - 150);
       ctx.fillStyle = COLORS.muted;
       ctx.fillRect(70, S - 120, S - 140, 22);
-      ctx.fillStyle = COLORS.lula;
+      ctx.fillStyle = COLORS.red;
       ctx.fillRect(70, S - 120, ((S - 140) * l) / 100, 22);
-      ctx.fillStyle = COLORS.bolso;
+      ctx.fillStyle = COLORS.green;
       ctx.fillRect(70 + ((S - 140) * l) / 100, S - 120, ((S - 140) * b) / 100, 22);
       ctx.fillStyle = COLORS.fg;
       ctx.textAlign = "center";

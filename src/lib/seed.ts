@@ -27,7 +27,7 @@ export async function ensureDevSeed() {
     const first = FIRST[i % FIRST.length];
     const name = `${first} ${LAST[Math.floor(rand() * LAST.length)]}`;
     const r = rand();
-    const vote = r < 0.45 ? "lula" : r < 0.85 ? "bolsonaro" : null;
+    const vote = r < 0.45 ? "red" : r < 0.85 ? "green" : null;
     const vis = rand() < 0.15 ? "private" : rand() < 0.3 ? "public" : "network";
     const id = `seed_${i}`;
     stmts.push({

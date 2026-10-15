@@ -15,8 +15,8 @@ export default function Image() {
             Escolha Vermelho ou Verde e veja de que lado está a sua bolha do X.
           </div>
           <div style={{ display: "flex", gap: 28, marginTop: 40, fontSize: 28, fontWeight: 700 }}>
-            <span style={{ color: OG.lula }}>● Vermelho</span>
-            <span style={{ color: OG.bolso }}>● Verde</span>
+            <span style={{ color: OG.red }}>● Vermelho</span>
+            <span style={{ color: OG.green }}>● Verde</span>
           </div>
         </div>
         <BubbleArt nodes={demoArt()} width={660} height={590} />

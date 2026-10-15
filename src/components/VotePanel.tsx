@@ -31,7 +31,7 @@ export function VotePanel({ me }: { me: Me }) {
       <h2 className="text-lg font-semibold">Seu lado</h2>
       <p className="mt-1 text-sm text-subtle">Sua escolha é pública e aparece com o seu @.</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
-        {(["lula", "bolsonaro"] as const).map((v) => (
+        {(["red", "green"] as const).map((v) => (
           <button
             key={v}
             disabled={pending || !consent}
@@ -40,8 +40,8 @@ export function VotePanel({ me }: { me: Me }) {
               vote === v ? "text-white" : "bg-card"
             }`}
             style={{
-              borderColor: v === "lula" ? "var(--red)" : "var(--green)",
-              background: vote === v ? (v === "lula" ? "var(--red)" : "var(--green)") : undefined,
+              borderColor: v === "red" ? "var(--red)" : "var(--green)",
+              background: vote === v ? (v === "red" ? "var(--red)" : "var(--green)") : undefined,
             }}
           >
             {SIDE[v]}

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getUserId } from "@/lib/session";
 
 // Only one or the other — no blank/null vote. Removing the data is done by deleting the account.
-const VOTES = new Set(["lula", "bolsonaro"]);
+const VOTES = new Set(["red", "green"]);
 
 export async function POST(req: Request) {
   const uid = await getUserId();

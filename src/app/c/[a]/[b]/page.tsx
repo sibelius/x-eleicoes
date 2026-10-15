@@ -46,8 +46,8 @@ async function Compare({ params }: { params: Params }) {
   const [A, B] = [c.a.user.username, c.b.user.username];
   if (decodeURIComponent(ra) !== A || decodeURIComponent(rb) !== B) permanentRedirect(comparePath(A, B));
   const base = appUrl();
-  const la = pct(c.a.tally.lula, c.a.tally.total);
-  const lb = pct(c.b.tally.lula, c.b.tally.total);
+  const la = pct(c.a.tally.red, c.a.tally.total);
+  const lb = pct(c.b.tally.red, c.b.tally.total);
   const verdict =
     !c.a.tally.total || !c.b.tally.total
       ? null
@@ -90,7 +90,7 @@ async function Compare({ params }: { params: Params }) {
                     {s.vote && (
                       <>
                         {" · "}
-                        <b style={{ color: s.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+                        <b style={{ color: s.vote === "red" ? "var(--red)" : "var(--green)" }}>
                           {SIDE[s.vote]}
                         </b>
                       </>
@@ -121,7 +121,7 @@ async function Compare({ params }: { params: Params }) {
                 <a
                   href={n.username ? sharePath(n.username) : undefined}
                   className="flex items-center gap-2 rounded-full border px-2 py-1"
-                  style={{ borderColor: n.vote === "lula" ? "var(--red)" : n.vote === "bolsonaro" ? "var(--green)" : "var(--line)" }}
+                  style={{ borderColor: n.vote === "red" ? "var(--red)" : n.vote === "green" ? "var(--green)" : "var(--line)" }}
                 >
                   {n.avatar && <img src={n.avatar} alt="" className="h-6 w-6 rounded-full" />}@{n.username}
                 </a>

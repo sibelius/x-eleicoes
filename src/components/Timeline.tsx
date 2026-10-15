@@ -16,21 +16,21 @@ function ago(t: number) {
 export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { points: TimelinePoint[]; events: TimelineEvent[]; title?: string }) {
   if (!points.length) return null;
   // A single day still draws a line: start from zero the day before.
-  const pts = points.length === 1 ? [{ ...points[0], day: "", lula: 0, bolsonaro: 0, members: 0 }, ...points] : points;
-  const max = Math.max(1, ...pts.map((p) => Math.max(p.lula, p.bolsonaro)));
+  const pts = points.length === 1 ? [{ ...points[0], day: "", red: 0, green: 0, members: 0 }, ...points] : points;
+  const max = Math.max(1, ...pts.map((p) => Math.max(p.red, p.green)));
   const x = (i: number) => PAD.l + (i / (pts.length - 1)) * (W - PAD.l - PAD.r);
   const y = (v: number) => H - PAD.b - (v / max) * (H - PAD.t - PAD.b);
-  const line = (k: "lula" | "bolsonaro") => pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join("");
+  const line = (k: "red" | "green") => pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join("");
   const first = points[0];
   const last = points[points.length - 1];
   const fmt = (d: string) => d.slice(8, 10) + "/" + d.slice(5, 7);
-  const share = (p: TimelinePoint) => pct(p.lula, p.lula + p.bolsonaro);
+  const share = (p: TimelinePoint) => pct(p.red, p.red + p.green);
   return (
     <section className="rounded-2xl border border-line bg-card p-4">
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-subtle">
         {last.members} {last.members === 1 ? "pessoa entrou" : "pessoas entraram"} desde {fmt(first.day)}
-        {last.lula + last.bolsonaro > 0 && first.lula + first.bolsonaro > 0 && share(first) !== share(last) && (
+        {last.red + last.green > 0 && first.red + first.green > 0 && share(first) !== share(last) && (
           <>
             {" "}
             · Vermelho foi de {share(first)}% para <b className="text-fg">{share(last)}%</b>
@@ -46,19 +46,19 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
             </text>
           </g>
         ))}
-        <path d={line("lula")} fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d={line("bolsonaro")} fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={line("red")} fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={line("green")} fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinejoin="round" />
         <text x={PAD.l} y={H - 6} fontSize="11" fill="var(--subtle)">
           {fmt(first.day)}
         </text>
         <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize="11" fill="var(--subtle)">
           {fmt(last.day)}
         </text>
-        <text x={W - PAD.r} y={y(last.lula) - 6} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--red)">
-          Vermelho {last.lula}
+        <text x={W - PAD.r} y={y(last.red) - 6} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--red)">
+          Vermelho {last.red}
         </text>
-        <text x={W - PAD.r} y={y(last.bolsonaro) + (last.bolsonaro === last.lula ? 16 : -6)} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--green)">
-          Verde {last.bolsonaro}
+        <text x={W - PAD.r} y={y(last.green) + (last.green === last.red ? 16 : -6)} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--green)">
+          Verde {last.green}
         </text>
       </svg>
       {events.length > 0 && (
@@ -75,7 +75,7 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
                 ) : (
                   <>
                     escolheu{" "}
-                    <b style={{ color: e.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+                    <b style={{ color: e.vote === "red" ? "var(--red)" : "var(--green)" }}>
                       {e.vote ? SIDE[e.vote] : ""}
                     </b>
                   </>

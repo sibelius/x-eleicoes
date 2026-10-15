@@ -21,7 +21,7 @@ const SCHEMA = [
     username TEXT NOT NULL,
     name TEXT NOT NULL,
     avatar TEXT,
-    vote TEXT CHECK (vote IN ('lula','bolsonaro')),
+    vote TEXT CHECK (vote IN ('red','green')),
     visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public','network','private')),
     voted_at INTEGER,
     invited_by TEXT,
@@ -73,8 +73,8 @@ const SCHEMA = [
   // Bubble totals at the last daily summary push, to tell what changed since.
   `CREATE TABLE IF NOT EXISTS tally_snapshots (
     uid TEXT PRIMARY KEY,
-    lula INTEGER NOT NULL,
-    bolsonaro INTEGER NOT NULL,
+    red INTEGER NOT NULL,
+    green INTEGER NOT NULL,
     members INTEGER NOT NULL,
     at INTEGER NOT NULL
   )`,

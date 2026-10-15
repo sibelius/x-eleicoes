@@ -47,15 +47,15 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().replace(/^@/, "") : "";
   const members = await listMembers(q);
-  const lula = members.filter((m) => m.vote === "lula").length;
-  const bolsonaro = members.filter((m) => m.vote === "bolsonaro").length;
+  const red = members.filter((m) => m.vote === "red").length;
+  const green = members.filter((m) => m.vote === "green").length;
   const [visitors, size, famous] = await Promise.all([viewCount(SITE), q ? null : getBubbleSize(null), q ? [] : getFamous()]);
   return (
     <>
       {!q && (
         <>
           <div className="mt-6 rounded-2xl border border-line bg-card p-4">
-            <TallyBar tally={{ lula, bolsonaro, total: lula + bolsonaro }} />
+            <TallyBar tally={{ red, green, total: red + green }} />
             <p className="mt-2 text-xs text-subtle">
               {members.length} {members.length === 1 ? "pessoa entrou" : "pessoas entraram"} · 👀 {visitors}{" "}
               {visitors === 1 ? "visitante" : "visitantes"} no site
@@ -68,7 +68,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
               shareBase={appUrl()}
               title="A bolha de todo mundo"
               readOnly
-              shareUrl={shareTweetUrl(appUrl(), null, { lula, total: lula + bolsonaro })}
+              shareUrl={shareTweetUrl(appUrl(), null, { red, total: red + green })}
             />
           </div>
           {size && (
@@ -84,7 +84,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
               </p>
               <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {famous.map((f) => {
-                  const l = f.tally.total ? Math.round((f.tally.lula / f.tally.total) * 100) : null;
+                  const l = f.tally.total ? Math.round((f.tally.red / f.tally.total) * 100) : null;
                   return (
                     <li key={f.id} className="flex items-center gap-2 rounded-xl bg-muted p-2">
                       <a href={sharePath(f.username)} className="flex min-w-0 flex-1 items-center gap-2">
@@ -147,7 +147,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
                 className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                 style={
                   m.vote
-                    ? { background: m.vote === "lula" ? "var(--red)" : "var(--green)", color: "#fff" }
+                    ? { background: m.vote === "red" ? "var(--red)" : "var(--green)", color: "#fff" }
                     : { background: "var(--muted)", color: "var(--subtle)" }
                 }
               >

@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./db";
 
-export type Vote = "lula" | "bolsonaro";
+export type Vote = "red" | "green";
 
 export type Me = {
   id: string;
@@ -25,11 +25,11 @@ export type NetworkNode = {
   follower: boolean; // they follow me
   invite: boolean; // joined through my link or invited me
   strength: number;
-  /** Combined bubble only: -1 (linked to Lula voters) … 1 (Bolsonaro voters). */
+  /** Combined bubble only: -1 (linked to Red voters) … 1 (Green voters). */
   lean?: number;
 };
 
-export type Tally = { lula: number; bolsonaro: number; total: number };
+export type Tally = { red: number; green: number; total: number };
 
 export async function getMe(uid: string): Promise<Me | null> {
   const client = await db();
@@ -92,7 +92,7 @@ export async function inviteCount(uid: string) {
   return Number(r.rows[0].n);
 }
 
-export type Ranked = Me & { tally: Tally; lulaPct: number };
+export type Ranked = Me & { tally: Tally; redPct: number };
 
 /**
  * Every member's bubble tally in one query (votes among the people they follow, who follow them,
@@ -109,7 +109,7 @@ export async function getRankings(minVotes = 3) {
          UNION SELECT u.invited_by, v.id, v.vote FROM users u JOIN v ON v.id = u.id WHERE u.invited_by IS NOT NULL
          UNION SELECT v.id, u.id, u.vote FROM v JOIN users u ON u.invited_by = v.id WHERE u.vote IS NOT NULL
        )
-       SELECT a AS id, SUM(vote = 'lula') AS lula, COUNT(*) AS total
+       SELECT a AS id, SUM(vote = 'red') AS red, COUNT(*) AS total
        FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
        GROUP BY a`,
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
@@ -136,15 +136,15 @@ export async function getRankings(minVotes = 3) {
     const m = byId.get(String(r.id));
     const total = Number(r.total);
     if (!m || total < minVotes) continue;
-    const lula = Number(r.lula);
-    ranked.push({ ...m, tally: { lula, bolsonaro: total - lula, total }, lulaPct: lula / total });
+    const red = Number(r.red);
+    ranked.push({ ...m, tally: { red, green: total - red, total }, redPct: red / total });
   }
   const top = (xs: Ranked[], score: (r: Ranked) => number) =>
     [...xs].sort((a, b) => score(b) - score(a) || b.tally.total - a.tally.total).slice(0, 10);
   return {
-    closedLula: top(ranked.filter((r) => r.lulaPct >= 0.5), (r) => r.lulaPct),
-    closedBolsonaro: top(ranked.filter((r) => r.lulaPct <= 0.5), (r) => 1 - r.lulaPct),
-    mixed: top(ranked.filter((r) => r.tally.total >= 5), (r) => -Math.abs(r.lulaPct - 0.5)),
+    closedRed: top(ranked.filter((r) => r.redPct >= 0.5), (r) => r.redPct),
+    closedGreen: top(ranked.filter((r) => r.redPct <= 0.5), (r) => 1 - r.redPct),
+    mixed: top(ranked.filter((r) => r.tally.total >= 5), (r) => -Math.abs(r.redPct - 0.5)),
     inviters: [...byId.values()]
       .filter((m) => m.invites! > 0)
       .sort((a, b) => b.invites! - a.invites!)
@@ -198,8 +198,8 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
 
 function tally(rows: Row[]): Tally {
   const voters = rows.filter((r) => r.member && r.vote);
-  const lula = voters.filter((r) => r.vote === "lula").length;
-  return { lula, bolsonaro: voters.length - lula, total: voters.length };
+  const red = voters.filter((r) => r.vote === "red").length;
+  return { red, green: voters.length - red, total: voters.length };
 }
 
 export async function getNetwork(uid: string) {
@@ -264,7 +264,7 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
                 SELECT e.dst AS id, m.vote FROM edges e JOIN m ON m.id = e.src
                 UNION ALL SELECT e.src, m.vote FROM edges e JOIN m ON m.id = e.dst
               )
-              SELECT l.id, COUNT(*) AS c, SUM(l.vote = 'lula') AS lula, SUM(l.vote = 'bolsonaro') AS bolso,
+              SELECT l.id, COUNT(*) AS c, SUM(l.vote = 'red') AS red, SUM(l.vote = 'green') AS green,
                 p.username, p.name, p.avatar
               FROM links l LEFT JOIN profiles p ON p.id = l.id
               WHERE l.id NOT IN (SELECT id FROM m)
@@ -290,15 +290,15 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
       }),
     ),
     ...others.rows.map((r) => {
-      const lula = Number(r.lula);
-      const bolso = Number(r.bolso);
+      const red = Number(r.red);
+      const green = Number(r.green);
       return base({
         id: String(r.id),
         username: (r.username as string | null) ?? null,
         name: (r.name as string | null) ?? null,
         avatar: (r.avatar as string | null) ?? null,
         strength: Math.min(3, Math.log2(Number(r.c))),
-        lean: lula + bolso ? (bolso - lula) / (lula + bolso) : 0,
+        lean: red + green ? (green - red) / (red + green) : 0,
       });
     }),
   ];
@@ -335,7 +335,7 @@ export async function getComparison(a: string, b: string) {
   };
 }
 
-export type TimelinePoint = { day: string; lula: number; bolsonaro: number; members: number };
+export type TimelinePoint = { day: string; red: number; green: number; members: number };
 export type TimelineEvent = { at: number; kind: "joined" | "voted"; username: string; avatar: string | null; vote: Vote | null };
 
 /**
@@ -374,8 +374,8 @@ export async function getTimeline(uid: string) {
     return {
       day: d,
       members: rows.filter((x) => end(x.joined)).length,
-      lula: rows.filter((x) => x.vote === "lula" && x.voted && end(x.voted)).length,
-      bolsonaro: rows.filter((x) => x.vote === "bolsonaro" && x.voted && end(x.voted)).length,
+      red: rows.filter((x) => x.vote === "red" && x.voted && end(x.voted)).length,
+      green: rows.filter((x) => x.vote === "green" && x.voted && end(x.voted)).length,
     };
   });
   const events: TimelineEvent[] = rows
@@ -463,7 +463,7 @@ export async function getFamous(limit = 24): Promise<Famous[]> {
   const client = await db();
   const r = await client.execute({
     sql: `SELECT p.id, p.username, p.name, p.avatar, COUNT(*) AS followers,
-            SUM(u.vote = 'lula') AS lula, SUM(u.vote = 'bolsonaro') AS bolso
+            SUM(u.vote = 'red') AS red, SUM(u.vote = 'green') AS green
           FROM edges e
           JOIN users u ON u.id = e.src AND u.id GLOB '[0-9]*'
           JOIN profiles p ON p.id = e.dst AND p.username IS NOT NULL
@@ -474,15 +474,15 @@ export async function getFamous(limit = 24): Promise<Famous[]> {
     args: [limit],
   });
   return r.rows.map((row) => {
-    const lula = Number(row.lula);
-    const bolsonaro = Number(row.bolso);
+    const red = Number(row.red);
+    const green = Number(row.green);
     return {
       id: String(row.id),
       username: String(row.username),
       name: String(row.name ?? row.username),
       avatar: (row.avatar as string | null) ?? null,
       followers: Number(row.followers),
-      tally: { lula, bolsonaro, total: lula + bolsonaro },
+      tally: { red, green, total: red + green },
     };
   });
 }

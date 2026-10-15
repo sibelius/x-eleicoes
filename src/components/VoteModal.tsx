@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Me } from "@/lib/network";
 import { VotePanel } from "./VotePanel";
 
-/** Until the user votes, ask up front: Lula or Bolsonaro. Closes on its own once the vote is saved. */
+/** Until the user votes, ask up front: Red or Green. Closes on its own once the vote is saved. */
 export function VoteModal({ me }: { me: Me }) {
   const [open, setOpen] = useState(true);
 

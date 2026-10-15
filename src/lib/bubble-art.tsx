@@ -8,8 +8,8 @@ export const OG = {
   fg: "#f2f2f0",
   subtle: "#9c9ca3",
   muted: "#222226",
-  lula: "#f0444f",
-  bolso: "#2bb56b",
+  red: "#f0444f",
+  green: "#2bb56b",
   none: "#5d5d64",
 };
 
@@ -26,8 +26,8 @@ export type ArtNode = {
 type Sim = SimulationNodeDatum & ArtNode;
 
 function ringColor(d: ArtNode) {
-  if (d.vote === "lula") return OG.lula;
-  if (d.vote === "bolsonaro") return OG.bolso;
+  if (d.vote === "red") return OG.red;
+  if (d.vote === "green") return OG.green;
   return d.me ? OG.fg : OG.none;
 }
 
@@ -37,7 +37,7 @@ function layout(nodes: ArtNode[], w: number, h: number) {
     n.me ? { ...n, x: 0, y: 0, fx: 0, fy: 0 } : { ...n, x: Math.cos(i * 2.39) * (40 + i), y: Math.sin(i * 2.39) * (40 + i) },
   );
   forceSimulation(sim)
-    .force("x", forceX<Sim>((d) => (d.vote === "lula" ? -150 : d.vote === "bolsonaro" ? 150 : 0)).strength((d) => (d.vote ? 0.12 : 0.05)))
+    .force("x", forceX<Sim>((d) => (d.vote === "red" ? -150 : d.vote === "green" ? 150 : 0)).strength((d) => (d.vote ? 0.12 : 0.05)))
     .force("y", forceY<Sim>(0).strength(0.09))
     .force("collide", forceCollide<Sim>((d) => d.r + 2).iterations(3))
     .stop()
@@ -130,7 +130,7 @@ export function demoArt(): ArtNode[] {
   const nodes: ArtNode[] = [{ id: "me", vote: null, r: 34, me: true }];
   for (let i = 0; i < 150; i++) {
     const p = rand();
-    const vote: Vote | null = p < 0.42 ? "lula" : p < 0.8 ? "bolsonaro" : null;
+    const vote: Vote | null = p < 0.42 ? "red" : p < 0.8 ? "green" : null;
     const member = rand() < 0.22;
     nodes.push({
       id: `n${i}`,

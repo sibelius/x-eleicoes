@@ -18,15 +18,15 @@ type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 
 function color(n: NetworkNode | null, me: Me | null) {
   const vote = n ? n.vote : me?.vote;
-  if (vote === "lula") return "var(--red)";
-  if (vote === "bolsonaro") return "var(--green)";
+  if (vote === "red") return "var(--red)";
+  if (vote === "green") return "var(--green)";
   return "var(--none)";
 }
 
 function targetX(n: NetworkNode | null, w: number) {
   if (!n) return w / 2;
-  if (n.vote === "lula") return w * 0.28;
-  if (n.vote === "bolsonaro") return w * 0.72;
+  if (n.vote === "red") return w * 0.28;
+  if (n.vote === "green") return w * 0.72;
   // Non-voters lean toward the side of the voters connected to them (combined bubble).
   return w / 2 + (n.lean ?? 0) * w * 0.2;
 }
@@ -262,8 +262,8 @@ export function Bubble({
         </div>
       </div>
       <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
-        <Legend c="var(--red)" label={SIDE.lula} />
-        <Legend c="var(--green)" label={SIDE.bolsonaro} />
+        <Legend c="var(--red)" label={SIDE.red} />
+        <Legend c="var(--green)" label={SIDE.green} />
         <Legend c="var(--none)" label="Ainda sem lado" />
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
@@ -297,7 +297,7 @@ export function Bubble({
             )}
           </defs>
           <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--red)] text-base font-bold">
-            {SIDE.lula}
+            {SIDE.red}
           </text>
           <text
             x={box.x + box.w - 12}
@@ -305,7 +305,7 @@ export function Bubble({
             textAnchor="end"
             className="fill-[var(--green)] text-base font-bold"
           >
-            {SIDE.bolsonaro}
+            {SIDE.green}
           </text>
           <g
             className={`bubble-zoom ${dragging ? "is-dragging" : ""}`}

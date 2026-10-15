@@ -84,7 +84,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       {share.vote && (
         <p className="mt-2 text-subtle">
           @{share.user.username} é{" "}
-          <b style={{ color: share.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+          <b style={{ color: share.vote === "red" ? "var(--red)" : "var(--green)" }}>
             {SIDE[share.vote]}
           </b>
         </p>

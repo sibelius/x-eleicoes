@@ -5,13 +5,13 @@ import type { Me, NetworkNode, Vote } from "@/lib/network";
 export function OtherSide({ me, nodes, base }: { me: Me & { vote: Vote }; nodes: NetworkNode[]; base: string }) {
   const other = nodes.filter((n) => n.voted && n.vote !== me.vote && n.username).slice(0, 12);
   if (!other.length) return null;
-  const side = me.vote === "lula" ? SIDE.bolsonaro : SIDE.lula;
+  const side = me.vote === "red" ? SIDE.green : SIDE.red;
   return (
     <section className="rounded-2xl border border-line bg-card p-4">
       <h2 className="text-lg font-semibold">Do outro lado</h2>
       <p className="mt-1 text-sm text-subtle">
         {other.length} {other.length === 1 ? "pessoa" : "pessoas"} da sua bolha {other.length === 1 ? "é" : "são"}{" "}
-        <b style={{ color: me.vote === "lula" ? "var(--green)" : "var(--red)" }}>{side}</b>. Desafie a comparar as bolhas.
+        <b style={{ color: me.vote === "red" ? "var(--green)" : "var(--red)" }}>{side}</b>. Desafie a comparar as bolhas.
       </p>
       <ul className="mt-3 grid gap-2 text-sm">
         {other.map((n) => (
