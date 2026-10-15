@@ -74,6 +74,7 @@ export function Bubble({
   const [selected, setSelected] = useState<NetworkNode | null>(null);
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "members" | "mutual">("all");
+  const [help, setHelp] = useState(false);
   const filters = me
     ? ([
         ["all", "Todos"],
@@ -153,6 +154,18 @@ export function Bubble({
     });
   }, []);
 
+  /** Sets the zoom level absolutely, keeping the current center of the view fixed (slider input). */
+  const zoomTo = useCallback(
+    (k1: number) => {
+      setView((v) => {
+        const k = Math.min(MAX_ZOOM, Math.max(1, k1));
+        if (k === 1) return HOME;
+        return { k, x: cx - ((cx - v.x) / v.k) * k, y: cy - ((cy - v.y) / v.k) * k };
+      });
+    },
+    [cx, cy],
+  );
+
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
@@ -226,7 +239,26 @@ export function Bubble({
   return (
     <div ref={wrap} className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <div className="relative flex items-center gap-1.5">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button
+            type="button"
+            aria-label="Como interagir com a bolha"
+            aria-expanded={help}
+            onClick={() => setHelp((h) => !h)}
+            className={`grid h-5 w-5 place-items-center rounded-full border border-line text-xs leading-none ${
+              help ? "bg-fg text-bg" : "text-subtle"
+            }`}
+          >
+            ?
+          </button>
+          {help && (
+            <div className="absolute top-full left-0 z-10 mt-2 max-w-72 rounded-xl border border-line bg-card p-3 text-xs text-subtle shadow-lg">
+              Arraste para mover, use a pinça ou os botões para zoom e toque em alguém para focar
+              {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
+            </div>
+          )}
+        </div>
         <div className="flex gap-1 text-sm">
           {filters.map(([k, label]) => (
             <button
@@ -337,7 +369,7 @@ export function Bubble({
             })}
           </g>
         </svg>
-        <div className="absolute right-1 bottom-1 flex gap-1">
+        <div className="absolute right-1 bottom-1 flex items-center gap-1">
           {view.k > 1 && (
             <ZoomButton label="Voltar ao início" onClick={reset}>
               ⟲
@@ -346,6 +378,19 @@ export function Bubble({
           <ZoomButton label="Diminuir zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1 / 1.6)}>
             −
           </ZoomButton>
+          <div className="grid h-9 place-items-center rounded-full border border-line bg-card px-2 shadow-sm">
+            <input
+              type="range"
+              aria-label="Nível de zoom"
+              title="Nível de zoom"
+              className="h-1.5 w-20 cursor-pointer accent-fg"
+              min={1}
+              max={MAX_ZOOM}
+              step={0.05}
+              value={view.k}
+              onChange={(e) => zoomTo(Number(e.target.value))}
+            />
+          </div>
           <ZoomButton label="Aumentar zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1.6)}>
             +
           </ZoomButton>
@@ -356,10 +401,6 @@ export function Bubble({
           {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
         </p>
       )}
-      <p className="mt-1 text-xs text-subtle">
-        Arraste para mover, use a pinça ou os botões para zoom e toque em alguém para focar
-        {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
-      </p>
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
