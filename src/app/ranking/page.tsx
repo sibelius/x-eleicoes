@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pct, sharePath } from "@/lib/links";
 import { getRankings, type Me, type Ranked } from "@/lib/network";
@@ -30,6 +31,7 @@ export default function RankingPage() {
 }
 
 async function Boards() {
+  await connection(); // live data, not frozen at build time
   const r = await getRankings();
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">

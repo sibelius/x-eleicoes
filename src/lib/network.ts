@@ -486,3 +486,53 @@ export async function getFamous(limit = 24): Promise<Famous[]> {
     };
   });
 }
+
+const AVATAR_PREFIX = "https://pbs.twimg.com/profile_images/";
+
+/**
+ * Every account in the bubble of bubbles, in a compact columnar shape for the 2D map:
+ * members, then every account linked to one (lean = -100 red … 100 green, from who they're linked to).
+ * Avatars drop the common prefix to keep the payload small.
+ */
+export async function getMapPoints() {
+  const client = await db();
+  const [members, others] = await client.batch(
+    [
+      `SELECT u.id, u.username, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
+      `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
+       links AS (
+         SELECT e.dst AS id, m.vote FROM edges e JOIN m ON m.id = e.src
+         UNION ALL SELECT e.src, m.vote FROM edges e JOIN m ON m.id = e.dst
+       )
+       SELECT l.id, SUM(l.vote = 'red') AS red, SUM(l.vote = 'green') AS green, p.username, p.avatar
+       FROM links l LEFT JOIN profiles p ON p.id = l.id
+       WHERE l.id NOT IN (SELECT id FROM m)
+       GROUP BY l.id`,
+    ],
+    "read",
+  );
+  const short = (a: unknown) =>
+    typeof a === "string" ? (a.startsWith(AVATAR_PREFIX) ? a.slice(AVATAR_PREFIX.length) : a) : null;
+  const out = { prefix: AVATAR_PREFIX, id: [] as string[], u: [] as (string | null)[], a: [] as (string | null)[], m: [] as number[], l: [] as number[] };
+  for (const r of members.rows) {
+    out.id.push(String(r.id));
+    out.u.push(r.username as string);
+    out.a.push(short(r.avatar));
+    // Members: 1 = red, 2 = green, 3 = no side yet. Their lean is their own side.
+    out.m.push(r.vote === "red" ? 1 : r.vote === "green" ? 2 : 3);
+    out.l.push(r.vote === "red" ? -100 : r.vote === "green" ? 100 : 0);
+  }
+  for (const r of others.rows) {
+    const red = Number(r.red);
+    const green = Number(r.green);
+    out.id.push(String(r.id));
+    out.u.push((r.username as string | null) ?? null);
+    out.a.push(short(r.avatar));
+    out.m.push(0);
+    out.l.push(red + green ? Math.round(((green - red) / (red + green)) * 100) : 0);
+  }
+  return out;
+}
+
+export type MapPoints = Awaited<ReturnType<typeof getMapPoints>>;
