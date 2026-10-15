@@ -70,7 +70,7 @@ export async function getTwins(uid: string): Promise<{ twin: Twin | null; opposi
               )
               SELECT m, COUNT(*) AS shared FROM links
               WHERE m <> :uid AND m IN (SELECT id FROM users WHERE ${MEMBER})
-              GROUP BY m ORDER BY shared DESC LIMIT 100`,
+              GROUP BY m ORDER BY shared DESC LIMIT 15`,
         args: { uid },
       },
       { sql: "SELECT vote FROM users WHERE id = ?", args: [uid] },

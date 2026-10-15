@@ -11,10 +11,7 @@ import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
 import { appUrl, getUserId } from "@/lib/session";
-import { getBridge, getTwins } from "@/lib/social";
 import { GuessHidden, GuessPanel, GuessProvider } from "@/components/play/Guess";
-import { Twins } from "@/components/play/Twins";
-import { BridgeCard } from "@/components/play/BridgeCard";
 import { AskButton } from "@/components/play/AskButton";
 import { getMe } from "@/lib/network";
 import { viewCount } from "@/lib/views";
@@ -55,14 +52,12 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
-  const [views, invites, timeline, size, viewer, twins, bridge] = await Promise.all([
+  const [views, invites, timeline, size, viewer] = await Promise.all([
     viewCount(user.id),
     inviteCount(user.id),
     getTimeline(user.id),
     getBubbleSize(user.id),
     getUserId(),
-    share.member ? getTwins(user.id) : null,
-    share.member ? getBridge(user.id) : null,
   ]);
   // The guessing game: everyone but the owner guesses before seeing a bubble with a few picks.
   const game = viewer !== user.id && share.tally.total >= 3;
@@ -169,16 +164,6 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           />
         </div>
         </GuessHidden>
-      )}
-      {twins && (twins.twin || twins.opposite) && (
-        <div className="mt-4">
-          <Twins twin={twins.twin} opposite={twins.opposite} base={appUrl()} owner={share.user.username} own={false} />
-        </div>
-      )}
-      {bridge && (
-        <div className="mt-4">
-          <BridgeCard bridge={bridge} own={false} />
-        </div>
       )}
       <div className="mt-4">
         <SupportStrip placement="bubble" />

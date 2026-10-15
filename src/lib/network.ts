@@ -4,8 +4,8 @@ import { db } from "./db";
 
 // Shared, read-heavy queries are cached in Vercel's runtime cache ("use cache: remote") for a few
 // minutes: the whole-graph ones scan every follow edge, which is most of the database's row reads.
-export const SHARED = { stale: 60, revalidate: 300, expire: 3600 };
-export const PER_USER = { stale: 60, revalidate: 120, expire: 3600 };
+export const SHARED = { stale: 300, revalidate: 3600, expire: 86400 };
+export const PER_USER = { stale: 300, revalidate: 1800, expire: 86400 };
 
 export type Vote = "red" | "green";
 

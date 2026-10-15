@@ -45,8 +45,6 @@ const TOURS = {
     step("wrapped", "🎁 A retrospectiva desta bolha, num card para postar."),
     step("bubble", "🫧 Cada bolinha é alguém da rede. Toque para ver quem é e toque de novo para abrir a bolha da pessoa."),
     step("bubble-video", "🎬 Gere o vídeo desta bolha para postar."),
-    step("twins", "🫧 O gêmeo de bolha: quem tem a rede mais parecida."),
-    step("bridge", "🌉 A ponte: quantos passos até alguém do outro lado."),
     step("timeline", "📈 Como esta bolha cresceu, dia após dia."),
   ],
   map: [
