@@ -21,6 +21,7 @@ const TOURS = {
     step("timeline", "📈 Linha do tempo: como a sua bolha cresceu, dia após dia."),
     step("other-side", "🤝 O outro lado: gente da sua rede que votou diferente de você. Desafie para comparar as bolhas."),
     step("invite", "📣 Convide: quem entra pelo seu link cai direto na sua bolha e te dá selos 🥉🥈🥇. Você recebe um aviso a cada pessoa que entrar."),
+    step("analytics", "📊 Análises da rede: o grafo de todo mundo, você nos anéis da rede, polarização e a árvore de convites."),
     step("push", "🔔 Notificações: saiba quando alguém da rede entra, vota, troca de lado ou compartilha a sua bolha."),
     step("import", "📦 Arquivo do X: importe para trazer a lista completa de quem você segue e de quem te segue."),
     step("nav", "🧭 Explore: o ranking das bolhas mais fechadas, todas as bolhas, e A rede (o grafo, quem é o centro, os convites e a polarização)."),

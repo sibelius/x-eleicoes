@@ -64,6 +64,28 @@ body {
   transform-box: fill-box;
   transform-origin: center;
 }
+/* Someone online right now: their photo breathes and blue sonar rings ripple out. */
+@keyframes bubble-live {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.14); }
+}
+@keyframes bubble-sonar {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+.bubble-live {
+  animation: bubble-live 1.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bubble-sonar {
+  animation: bubble-sonar 1.8s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bubble-sonar-late {
+  animation-delay: 0.9s;
+}
 .bubble-node {
   transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease;
 }
@@ -75,7 +97,7 @@ body {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .bubble-pop, .bubble-pulse { animation: none; }
+  .bubble-pop, .bubble-pulse, .bubble-live, .bubble-sonar { animation: none; }
   .bubble-node, .bubble-zoom { transition: none; }
 }
 

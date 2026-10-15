@@ -363,19 +363,24 @@ export function Bubble({
                     {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
                     {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
                     {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
+                    {/* Online now: two staggered sonar rings, and the photo itself breathes. */}
                     {n && online.has(n.id) && (
-                      <circle r={d.r + 2} className="bubble-pulse" fill="none" stroke="var(--accent)" strokeWidth={2} />
+                      <>
+                        <circle r={d.r + 1} className="bubble-sonar" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
+                        <circle r={d.r + 1} className="bubble-sonar bubble-sonar-late" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
+                      </>
                     )}
-                    <circle
-                      r={d.r - sw / 2}
-                      fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
-                      stroke={ring}
-                      strokeWidth={sw}
-                    />
-                    {/* Online now: a small dot on the shoulder. */}
-                    {n && online.has(n.id) && (
-                      <circle cx={d.r * 0.7} cy={-d.r * 0.7} r={Math.max(3.5, d.r * 0.28)} fill="var(--accent)" stroke="var(--card)" strokeWidth={1.5} />
-                    )}
+                    <g className={n && online.has(n.id) ? "bubble-live" : undefined}>
+                      <circle
+                        r={d.r - sw / 2}
+                        fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
+                        stroke={ring}
+                        strokeWidth={sw}
+                      />
+                      {n && online.has(n.id) && (
+                        <circle cx={d.r * 0.7} cy={-d.r * 0.7} r={Math.max(3.5, d.r * 0.28)} fill="var(--accent)" stroke="var(--card)" strokeWidth={1.5} />
+                      )}
+                    </g>
                     {!avatar && d.r > 9 && (
                       <text
                         textAnchor="middle"

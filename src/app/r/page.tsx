@@ -12,6 +12,7 @@ import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
 import { SITE } from "@/lib/views-shared";
 import Link from "next/link";
+import { NetworkAnalytics } from "@/components/NetworkAnalytics";
 
 export const metadata: Metadata = {
   title: "Todas as bolhas · Minha Bolha",
@@ -37,6 +38,7 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
           Comparar bolhas
         </Link>
       </div>
+      <NetworkAnalytics className="mt-4" />
       <div className="mt-4">
         <SupportStrip placement="directory" />
       </div>

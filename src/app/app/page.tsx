@@ -20,6 +20,7 @@ import { isAdmin } from "@/lib/admin";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
 import { Tour } from "@/components/Tour";
+import { NetworkAnalytics } from "@/components/NetworkAnalytics";
 
 export default function AppPage() {
   return (
@@ -54,7 +55,7 @@ async function Dashboard() {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
       <VoteModal me={me} />
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div data-tour="me" className="flex items-center gap-3">
           {me.avatar && <img src={me.avatar} alt="" className="h-10 w-10 rounded-full" />}
           <div>
@@ -64,7 +65,7 @@ async function Dashboard() {
             <div className="text-sm text-subtle">@{me.username}</div>
           </div>
         </div>
-        <div data-tour="nav" className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+        <div data-tour="nav" className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:w-auto sm:justify-end">
           <Tour name="app" autoStart={!!me.vote} />
           <Link href="/apoie" className="rounded-full bg-[var(--green)] px-3 py-1 font-semibold text-white">
             Doar
@@ -206,6 +207,9 @@ async function Dashboard() {
               </ul>
             )}
           </section>
+          <div className="order-4 lg:order-none">
+            <NetworkAnalytics username={me.username} />
+          </div>
           {pushPublicKey() && (
             <div data-tour="push" className="order-5 lg:order-none">
               <PushToggle publicKey={pushPublicKey()!} />
