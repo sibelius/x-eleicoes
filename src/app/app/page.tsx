@@ -56,7 +56,7 @@ async function Dashboard() {
             <div className="mt-4 flex flex-wrap gap-2 text-sm">
               <a
                 className="rounded-full bg-fg px-4 py-2 text-bg"
-                href={shareTweetUrl(base, me.username, l, tally.total ? 100 - l : 0)}
+                href={shareTweetUrl(base, me.username, tally, true)}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -68,7 +68,7 @@ async function Dashboard() {
             </div>
           </section>
           <div className="order-3 min-w-0 lg:order-none">
-            <Bubble me={me} nodes={nodes} shareBase={base} />
+            <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} />
           </div>
         </div>
 

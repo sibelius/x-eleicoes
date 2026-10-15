@@ -46,6 +46,7 @@ export function Bubble({
   title = "Sua bolha",
   centerLabel = "VOCÊ",
   readOnly = false,
+  shareUrl,
 }: {
   /** The owner in the middle; null for the combined bubble of everyone. */
   me: Me | null;
@@ -55,6 +56,8 @@ export function Bubble({
   centerLabel?: string;
   /** Public page: a visitor can look, but not ask people to vote on the owner's behalf. */
   readOnly?: boolean;
+  /** X intent link to post this bubble. */
+  shareUrl?: string;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState(WIDE);
@@ -226,7 +229,19 @@ export function Bubble({
   return (
     <div ref={wrap} className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          {shareUrl && (
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full bg-fg px-3 py-1 text-sm text-bg"
+            >
+              Compartilhar no X
+            </a>
+          )}
+        </div>
         <div className="flex gap-1 text-sm">
           {filters.map(([k, label]) => (
             <button

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { sharePath } from "@/lib/links";
+import { sharePath, shareTweetUrl } from "@/lib/links";
 import { getNetwork, getShare, resolveUser } from "@/lib/network";
 import { appUrl } from "@/lib/session";
 import Link from "next/link";
@@ -68,6 +68,14 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       >
         Ver como a minha rede vota
       </a>
+      <a
+        href={shareTweetUrl(appUrl(), share.user.username, share.tally)}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold"
+      >
+        Compartilhar esta bolha no X
+      </a>
       <Link href="/r" className="mt-3 self-start text-sm text-subtle underline">
         Ver todas as bolhas
       </Link>
@@ -80,6 +88,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
             title={`A bolha de @${share.user.username}`}
             centerLabel={share.user.username.slice(0, 1).toUpperCase()}
             readOnly
+            shareUrl={shareTweetUrl(appUrl(), share.user.username, share.tally)}
           />
         </div>
       )}

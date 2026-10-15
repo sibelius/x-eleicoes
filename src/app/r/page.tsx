@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
-import { sharePath } from "@/lib/links";
+import { sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
 import { getGlobalNetwork, listMembers } from "@/lib/network";
 import { appUrl } from "@/lib/session";
@@ -41,7 +41,14 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
             <TallyBar tally={{ lula, bolsonaro, total: lula + bolsonaro }} />
           </div>
           <div className="mt-4">
-            <Bubble me={null} nodes={await getGlobalNetwork()} shareBase={appUrl()} title="A bolha de todo mundo" readOnly />
+            <Bubble
+              me={null}
+              nodes={await getGlobalNetwork()}
+              shareBase={appUrl()}
+              title="A bolha de todo mundo"
+              readOnly
+              shareUrl={shareTweetUrl(appUrl(), null, { lula, total: lula + bolsonaro })}
+            />
           </div>
         </>
       )}
