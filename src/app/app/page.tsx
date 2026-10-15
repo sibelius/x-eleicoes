@@ -5,6 +5,7 @@ import { ImportArchive } from "@/components/ImportArchive";
 import { PushToggle } from "@/components/PushToggle";
 import { TallyBar } from "@/components/TallyBar";
 import { VotePanel } from "@/components/VotePanel";
+import { VoteModal } from "@/components/VoteModal";
 import { inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
 import { viewCount } from "@/lib/views";
 import { getMe, getNetwork } from "@/lib/network";
@@ -34,6 +35,7 @@ async function Dashboard() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
+      <VoteModal me={me} />
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {me.avatar && <img src={me.avatar} alt="" className="h-10 w-10 rounded-full" />}
