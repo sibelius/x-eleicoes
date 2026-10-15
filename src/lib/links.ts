@@ -1,5 +1,15 @@
 export const SIDE = { red: "Vermelho", green: "Verde" } as const;
 
+/** Tags a link we hand out (posts on X, push notifications) so arrivals can be attributed (see /admin/origem). */
+export function withUtm(url: string, campaign: string, opts: { source?: string; medium?: string; content?: string } = {}) {
+  const u = new URL(url);
+  u.searchParams.set("utm_source", opts.source ?? "x");
+  u.searchParams.set("utm_medium", opts.medium ?? "social");
+  u.searchParams.set("utm_campaign", campaign);
+  if (opts.content) u.searchParams.set("utm_content", opts.content);
+  return u.toString();
+}
+
 export function inviteLink(base: string, uid: string) {
   return `${base}/?ref=${encodeURIComponent(uid)}`;
 }
@@ -8,7 +18,8 @@ export function inviteTweetUrl(base: string, uid: string, username?: string | nu
   const text = username
     ? `@${username} já escolheu seu lado? Entra com sua conta do X e vê de que lado está a nossa rede: Vermelho ou Verde 🔴🟢`
     : `De que lado está a sua rede do X? Vermelho ou Verde? Entra e descobre 🔴🟢`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(inviteLink(base, uid))}`;
+  const url = withUtm(inviteLink(base, uid), "invite", { content: username ? "personal" : "general" });
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
 export function sharePath(username: string) {
@@ -43,7 +54,7 @@ export function shareTweetUrl(
     : own
       ? `Minha bolha no X: ${v}. E a sua?`
       : `A bolha de @${username} no X: ${v}. E a sua?`;
-  const url = `${base}${username ? sharePath(username) : "/r"}`;
+  const url = withUtm(`${base}${username ? sharePath(username) : "/r"}`, "bubble", { content: own ? "own" : username ? "other" : "all" });
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
@@ -61,7 +72,7 @@ export function comparePath(a: string, b: string) {
 
 export function compareTweetUrl(base: string, a: string, b: string) {
   const text = `Comparei a bolha de @${a} com a de @${b} no X. Qual é mais Vermelho? E mais Verde? 🔴🟢`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(a, b)}`)}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${base}${comparePath(a, b)}`, "compare"))}`;
 }
 
 /** One post tagging the members who joined but haven't voted (as many as fit in a post). */
@@ -75,7 +86,7 @@ export function nudgeTweetUrl(base: string, uid: string, usernames: string[]) {
     tags = next;
   }
   const text = `${tags}${tail}`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(inviteLink(base, uid))}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(inviteLink(base, uid), "nudge"))}`;
 }
 
 /** Badge for bringing people in through your link. */
@@ -93,7 +104,7 @@ export function challengeTweetUrl(base: string, me: { username: string; vote: "r
   const mine = SIDE[me.vote];
   const theirs = me.vote === "red" ? SIDE.green : SIDE.red;
   const text = `@${them} você é ${theirs}, eu sou ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(me.username, them)}`)}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${base}${comparePath(me.username, them)}`, "challenge"))}`;
 }
 
 /** Buying an ad = a DM to @sseraphini on X. */

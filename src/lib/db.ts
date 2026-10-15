@@ -108,6 +108,19 @@ const SCHEMA = [
     via TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS shares_at ON shares (at)`,
+  // Arrivals through a UTM-tagged link (kind 'visit') and signups that followed one (kind 'signup', first touch).
+  `CREATE TABLE IF NOT EXISTS utm_events (
+    at INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    source TEXT NOT NULL,
+    medium TEXT NOT NULL,
+    campaign TEXT NOT NULL,
+    content TEXT NOT NULL,
+    path TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS utm_events_at ON utm_events (at)`,
   // Last "someone shared your bubble" push per owner, at most one every 30 minutes.
   `CREATE TABLE IF NOT EXISTS share_pushes (
     uid TEXT PRIMARY KEY,

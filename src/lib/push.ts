@@ -1,7 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
-import { BADGE_STEPS, SIDE, pct, sharePath } from "./links";
+import { BADGE_STEPS, SIDE, pct, sharePath, withUtm } from "./links";
 import { getShare } from "./network";
 
 export function pushPublicKey() {
@@ -20,7 +20,8 @@ function ready() {
   return true;
 }
 
-type Payload = { title: string; body: string; url: string };
+/** `campaign` names the notification in the UTM tags its link carries (utm_source=push). */
+type Payload = { title: string; body: string; url: string; campaign: string };
 
 /** Push to the given browser subscriptions; dead ones (404/410) are removed. */
 async function send(rows: Record<string, unknown>[], payload: Payload) {
@@ -32,7 +33,7 @@ async function send(rows: Record<string, unknown>[], payload: Payload) {
       try {
         await webpush.sendNotification(
           { endpoint, keys: { p256dh: String(row.p256dh), auth: String(row.auth) } },
-          JSON.stringify(payload),
+          JSON.stringify({ ...payload, url: withUtm(payload.url, payload.campaign, { source: "push", medium: "webpush" }) }),
         );
         sent++;
       } catch (e) {
@@ -72,6 +73,7 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
     title: "Alguém da sua rede entrou",
     body: `@${newcomer.username} entrou na Minha Bolha. Veja como sua bolha mudou.`,
     url,
+    campaign: "joined",
   });
 }
 
@@ -119,6 +121,7 @@ export async function notifyNetworkVoted(voter: string, vote: "red" | "green", o
       ? `@${username} saiu do ${SIDE[from]} e foi pro ${SIDE[vote]}. Veja como sua bolha mudou.`
       : `@${username} escolheu o ${SIDE[vote]}. Veja como sua bolha mudou.`,
     url: `${origin}${sharePath(username)}`,
+    campaign: switched ? "switched" : "voted",
   });
 }
 
@@ -135,6 +138,7 @@ export async function notifyInviteJoined(inviter: string, newcomer: { username: 
       `${n === 1 ? "Sua primeira pessoa" : `Já são ${n} pessoas`} pelo seu link.` +
       (next ? ` Faltam ${next - n} para o próximo selo.` : " Você é recrutador ouro 🥇"),
     url: `${origin}/app`,
+    campaign: "invite",
   });
 }
 
@@ -169,7 +173,7 @@ export async function notifyShared(
             title: `${who} comparou sua bolha 📣`,
             body: share.other ? `Sua bolha foi comparada com a de @${share.other} no X.` : "Sua bolha foi comparada no X.",
           };
-  return sendTo(owner, { ...payload, url: `${origin}${share.path}` });
+  return sendTo(owner, { ...payload, url: `${origin}${share.path}`, campaign: `shared-${share.kind}` });
 }
 
 /** "N people saw your bubble today": at most one push per owner every 30 minutes. */
@@ -197,6 +201,7 @@ export async function notifyBubbleViewed(uid: string, origin: string) {
     title: "Estão vendo a sua bolha 👀",
     body: `${n} ${n === 1 ? "pessoa viu" : "pessoas viram"} sua bolha hoje (${Number(total.rows[0].n)} no total).`,
     url: `${origin}/app`,
+    campaign: "viewed",
   });
 }
 
@@ -234,6 +239,7 @@ export async function sendDailySummaries(origin: string) {
       title: "Sua bolha hoje 🔴🟢",
       body: `${parts.join(" · ")}. Agora: ${l}% Vermelho × ${now.red + now.green ? 100 - l : 0}% Verde. Compartilhe!`,
       url: `${origin}/app`,
+      campaign: "daily",
     });
   }
   return { users: subs.rows.length, sent };

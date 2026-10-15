@@ -223,3 +223,61 @@ export async function getBubbleLeans(): Promise<BubbleLean[]> {
     return [{ id: String(r.id), username: m.username, vote: m.vote, red, green: total - red, total }];
   });
 }
+
+export type UtmRow = { source: string; medium: string; campaign: string; content: string; visits: number; visitors: number; signups: number; voted: number };
+
+/** Arrivals and signups per tagged link (posts on X, push notifications). */
+export async function getUtmStats() {
+  const client = await db();
+  const [rows, byDay, paths, totals] = await client.batch(
+    [
+      `SELECT e.source, e.medium, e.campaign, e.content,
+         SUM(e.kind = 'visit') AS visits,
+         COUNT(DISTINCT CASE WHEN e.kind = 'visit' THEN e.visitor END) AS visitors,
+         SUM(e.kind = 'signup') AS signups,
+         SUM(e.kind = 'signup' AND u.vote IS NOT NULL) AS voted
+       FROM utm_events e LEFT JOIN users u ON e.kind = 'signup' AND u.id = substr(e.visitor, 3)
+       GROUP BY e.source, e.medium, e.campaign, e.content`,
+      "SELECT day, SUM(kind = 'visit') AS visits, SUM(kind = 'signup') AS signups FROM utm_events GROUP BY day",
+      "SELECT path, COUNT(*) AS n FROM utm_events WHERE kind = 'visit' GROUP BY path ORDER BY n DESC LIMIT 10",
+      `SELECT COALESCE(SUM(kind = 'visit'), 0) AS visits, COUNT(DISTINCT CASE WHEN kind = 'visit' THEN visitor END) AS visitors,
+         COALESCE(SUM(kind = 'signup'), 0) AS signups FROM utm_events`,
+    ],
+    "read",
+  );
+  const all: UtmRow[] = rows.rows.map((r) => ({
+    source: String(r.source),
+    medium: String(r.medium),
+    campaign: String(r.campaign),
+    content: String(r.content),
+    visits: Number(r.visits),
+    visitors: Number(r.visitors),
+    signups: Number(r.signups),
+    voted: Number(r.voted),
+  }));
+  // Roll content up into campaigns, and campaigns into sources.
+  const roll = (key: (r: UtmRow) => string) => {
+    const m = new Map<string, UtmRow>();
+    for (const r of all) {
+      const k = key(r);
+      const acc = m.get(k) ?? { ...r, content: "", visits: 0, visitors: 0, signups: 0, voted: 0 };
+      acc.visits += r.visits;
+      acc.visitors += r.visitors; // upper bound: one person can arrive through two links
+      acc.signups += r.signups;
+      acc.voted += r.voted;
+      m.set(k, acc);
+    }
+    return [...m.values()].sort((a, b) => b.visits - a.visits || b.signups - a.signups);
+  };
+  const days = lastDays(30);
+  const found = new Map(byDay.rows.map((r) => [String(r.day), r]));
+  const t = totals.rows[0];
+  return {
+    totals: { visits: Number(t.visits), visitors: Number(t.visitors), signups: Number(t.signups), voted: all.reduce((s, r) => s + r.voted, 0) },
+    sources: roll((r) => `${r.source}|${r.medium}`),
+    campaigns: roll((r) => `${r.source}|${r.medium}|${r.campaign}`),
+    detail: [...all].sort((a, b) => b.visits - a.visits),
+    daily: days.map((day) => ({ day, visits: Number(found.get(day)?.visits ?? 0), signups: Number(found.get(day)?.signups ?? 0) })),
+    paths: paths.rows.map((r) => ({ path: String(r.path), visits: Number(r.n) })),
+  };
+}

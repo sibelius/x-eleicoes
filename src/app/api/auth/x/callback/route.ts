@@ -3,6 +3,7 @@ import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
 import { notifyInviteJoined, notifyNetworkJoined } from "@/lib/push";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
+import { UTM_COOKIE, recordUtm, rememberedUtm } from "@/lib/utm";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
 import { accessToken } from "@/lib/x-oauth1";
 
@@ -58,6 +59,9 @@ export async function GET(req: NextRequest) {
               avatar = COALESCE(excluded.avatar, users.avatar)`,
       args: [who.id, who.username, who.name, who.avatar, ref, Date.now()],
     });
+    // Signed up after arriving through a tagged link: credit that link (first touch).
+    const utm = isNew ? rememberedUtm(req) : null;
+    if (utm) after(() => recordUtm("signup", `u:${who.id}`, utm).catch((e) => console.error("[utm] signup", e)));
     // Invited: tell the inviter right away (the network push below waits for the follow import).
     if (isNew && ref) {
       after(async () => {
@@ -96,6 +100,7 @@ export async function GET(req: NextRequest) {
     const res = NextResponse.redirect(`${origin}/app`);
     res.cookies.set(sessionCookie.name, await createSessionToken(who.id), sessionCookie.options);
     res.cookies.delete("xe_oauth");
+    if (utm) res.cookies.delete(UTM_COOKIE);
     return res;
   } catch (e) {
     return fail(e);

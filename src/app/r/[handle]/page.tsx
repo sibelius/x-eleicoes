@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { SIDE, sharePath, shareTweetUrl } from "@/lib/links";
+import { SIDE, sharePath, shareTweetUrl, withUtm } from "@/lib/links";
 import { getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
@@ -77,7 +77,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
             rel="noreferrer"
             href={`https://x.com/intent/post?text=${encodeURIComponent(
               `@${share.user.username} já vimos de que lado está a sua rede. Falta só você: Vermelho ou Verde? 🔴🟢`,
-            )}&url=${encodeURIComponent(`${appUrl()}${sharePath(share.user.username)}`)}`}
+            )}&url=${encodeURIComponent(withUtm(`${appUrl()}${sharePath(share.user.username)}`, "call"))}`}
           >
             Chamar @{share.user.username} no X
           </a>

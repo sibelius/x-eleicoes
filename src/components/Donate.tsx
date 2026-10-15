@@ -1,5 +1,6 @@
 "use client";
 
+import { withUtm } from "@/lib/links";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { pixPayload } from "@/lib/pix";
@@ -15,7 +16,7 @@ const PRESETS = [5, 10, 25, 50, 100];
 /** We can't see a static Pix arrive, so after copying/scanning we offer "I just donated" to post on X. */
 function donatedTweetUrl(amount: number | null) {
   const text = `Acabei de doar${amount ? ` R$ ${amount.toFixed(2).replace(".", ",").replace(",00", "")}` : ""} para o projeto Minha Bolha 💚 Apoie também e veja de que lado está a sua rede do X: Vermelho ou Verde?`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${typeof location === "undefined" ? "https://x-eleicoes.vercel.app" : location.origin}/apoie`)}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${typeof location === "undefined" ? "https://x-eleicoes.vercel.app" : location.origin}/apoie`, "donate"))}`;
 }
 
 function SharedDonation({ amount, className = "" }: { amount: number | null; className?: string }) {

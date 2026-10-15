@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import { LiveBar } from "@/components/LiveBar";
 import { ShareTracker } from "@/components/ShareTracker";
+import { UtmBeacon } from "@/components/UtmBeacon";
 import { SITE } from "@/lib/views-shared";
 import "./globals.css";
 
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Analytics />
         <ViewBeacon ids={[SITE]} />
         <ShareTracker />
+        <UtmBeacon />
       </body>
     </html>
   );
