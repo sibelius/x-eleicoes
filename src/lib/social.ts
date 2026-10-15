@@ -51,87 +51,106 @@ export async function inviteOpens(uid: string) {
 }
 
 export type Twin = Me & { similarity: number; shared: number };
+export type Bridge = { path: Me[]; steps: number } | null;
+
+/** Every follow edge plus every member (one scan of the edges table; only the derived results are cached). */
+async function graphSnapshot() {
+  const client = await db();
+  const [members, edges] = await client.batch(
+    [
+      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.invited_by
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.${MEMBER}`,
+      "SELECT src, dst FROM edges",
+    ],
+    "read",
+  );
+  const people = members.rows.map((r) => ({ ...person(r), invitedBy: (r.invited_by as string | null) ?? null }));
+  const ids = new Set(people.map((m) => m.id));
+  // Each member's neighbors (follows + followers), and the member-only links for bridges.
+  const nb: Record<string, string[]> = {};
+  const links: [string, string][] = [];
+  for (const r of edges.rows) {
+    const a = String(r.src);
+    const b = String(r.dst);
+    if (a === b) continue;
+    if (ids.has(a)) (nb[a] ??= []).push(b);
+    if (ids.has(b)) (nb[b] ??= []).push(a);
+    if (ids.has(a) && ids.has(b)) links.push([a, b]);
+  }
+  for (const m of people) if (m.invitedBy && ids.has(m.invitedBy)) links.push([m.id, m.invitedBy]);
+  for (const k in nb) nb[k] = [...new Set(nb[k])];
+  return { people, nb, links };
+}
+
+/**
+ * Twins (Jaccard over follows + followers) and bridges for every member at once, from one scan of the
+ * edges table, cached an hour: per-person lookups then cost no database reads.
+ */
+async function derived() {
+  "use cache: remote";
+  cacheLife(SHARED);
+  const { people, nb, links } = await graphSnapshot();
+  const byId = new Map(people.map((m) => [m.id, m]));
+  // Inverted index: account -> members linked to it; pairs sharing an account get +1.
+  const owners = new Map<string, string[]>();
+  for (const [m, xs] of Object.entries(nb)) for (const x of xs) (owners.get(x) ?? owners.set(x, []).get(x)!).push(m);
+  const shared = new Map<string, Map<string, number>>();
+  for (const ms of owners.values()) {
+    if (ms.length < 2 || ms.length > 120) continue; // accounts everyone follows say little about similarity
+    for (const a of ms) {
+      const row = shared.get(a) ?? shared.set(a, new Map()).get(a)!;
+      for (const b of ms) if (a !== b) row.set(b, (row.get(b) ?? 0) + 1);
+    }
+  }
+  const out: Record<string, { twin: Twin | null; opposite: Twin | null }> = {};
+  for (const [a, row] of shared) {
+    const me = byId.get(a);
+    if (!me) continue;
+    const ranked = [...row]
+      .filter(([, s]) => s >= 3)
+      .map(([b, s]) => {
+        const them = byId.get(b)!;
+        const { invitedBy: _, ...rest } = them;
+        return { ...rest, shared: s, similarity: s / Math.max(1, nb[a].length + (nb[b]?.length ?? 0) - s) };
+      })
+      .sort((x, y) => y.similarity - x.similarity);
+    out[a] = {
+      twin: ranked[0] ?? null,
+      opposite: (me.vote && ranked.find((t) => t.vote && t.vote !== me.vote)) || null,
+    };
+  }
+  const bridges: Record<string, Bridge> = {};
+  for (const m of people) bridges[m.id] = bridgeFrom(m.id, people, links);
+  return { twins: out, bridges };
+}
 
 /**
  * The member whose network (follows + followers) overlaps yours the most (Jaccard), and the most
  * similar one who picked the other side.
  */
 export async function getTwins(uid: string): Promise<{ twin: Twin | null; opposite: Twin | null }> {
-  "use cache: remote";
-  cacheLife(PER_USER);
-  const client = await db();
-  const [overlap, meRow] = await client.batch(
-    [
-      {
-        sql: `WITH mine AS (SELECT dst AS x FROM edges WHERE src = :uid UNION SELECT src FROM edges WHERE dst = :uid),
-              links AS (
-                SELECT e.src AS m, e.dst AS x FROM edges e JOIN mine ON mine.x = e.dst
-                UNION SELECT e.dst, e.src FROM edges e JOIN mine ON mine.x = e.src
-              )
-              SELECT m, COUNT(*) AS shared FROM links
-              WHERE m <> :uid AND m IN (SELECT id FROM users WHERE ${MEMBER})
-              GROUP BY m ORDER BY shared DESC LIMIT 15`,
-        args: { uid },
-      },
-      { sql: "SELECT vote FROM users WHERE id = ?", args: [uid] },
-    ],
-    "read",
-  );
-  const shared = new Map(overlap.rows.map((r) => [String(r.m), Number(r.shared)]));
-  if (!shared.size) return { twin: null, opposite: null };
-  const ids = [uid, ...shared.keys()];
-  const sizes = await client.execute({
-    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
-            (SELECT COUNT(*) FROM (SELECT dst FROM edges WHERE src = u.id UNION SELECT src FROM edges WHERE dst = u.id)) AS n
-          FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id IN (${ids.map(() => "?").join(",")})`,
-    args: ids,
-  });
-  const mine = Number(sizes.rows.find((r) => String(r.id) === uid)?.n ?? 0);
-  const myVote = (meRow.rows[0]?.vote as Vote | null) ?? null;
-  const ranked = sizes.rows
-    .filter((r) => String(r.id) !== uid)
-    .map((r) => {
-      const s = shared.get(String(r.id)) ?? 0;
-      return { ...person(r), shared: s, similarity: s / Math.max(1, mine + Number(r.n) - s) };
-    })
-    .filter((t) => t.shared >= 3)
-    .sort((a, b) => b.similarity - a.similarity);
-  return {
-    twin: ranked[0] ?? null,
-    opposite: (myVote && ranked.find((t) => t.vote && t.vote !== myVote)) || null,
-  };
+  return (await derived()).twins[uid] ?? { twin: null, opposite: null };
 }
-
-export type Bridge = { path: Me[]; steps: number } | null;
 
 /**
  * The shortest chain of follows (either direction) or invites between members, from `uid` to the
  * nearest member who picked the other side. Null when they haven't picked or nobody is reachable.
  */
 export async function getBridge(uid: string): Promise<Bridge> {
-  "use cache: remote";
-  cacheLife(PER_USER);
-  const client = await db();
-  const [members, edges] = await client.batch(
-    [
-      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.invited_by
-       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.${MEMBER}`,
-      `SELECT src, dst FROM edges WHERE src IN (SELECT id FROM users WHERE ${MEMBER})
-         AND dst IN (SELECT id FROM users WHERE ${MEMBER}) AND src <> dst`,
-    ],
-    "read",
-  );
-  const byId = new Map(members.rows.map((r) => [String(r.id), person(r)]));
+  return (await derived()).bridges[uid] ?? null;
+}
+
+type Person = Me & { invitedBy: string | null };
+
+function bridgeFrom(uid: string, people: Person[], links: [string, string][]): Bridge {
+  const byId = new Map(people.map(({ invitedBy: _, ...m }) => [m.id, m as Me]));
   const me = byId.get(uid);
   if (!me?.vote) return null;
   const adj = new Map<string, string[]>();
-  const link = (a: string, b: string) => {
-    if (!byId.has(a) || !byId.has(b)) return;
+  for (const [a, b] of links) {
     (adj.get(a) ?? adj.set(a, []).get(a)!).push(b);
     (adj.get(b) ?? adj.set(b, []).get(b)!).push(a);
-  };
-  for (const r of edges.rows) link(String(r.src), String(r.dst));
-  for (const r of members.rows) if (r.invited_by) link(String(r.id), String(r.invited_by));
+  }
   const prev = new Map<string, string | null>([[uid, null]]);
   const queue = [uid];
   while (queue.length) {
