@@ -219,6 +219,12 @@ export function Bubble({
     setView(HOME);
   }
 
+  /** Moves the camera by a fraction of the visible area (→ shows more of the right side). */
+  function pan(dx: number, dy: number) {
+    setView((v) => ({ ...v, x: v.x - (dx * box.w) / 4, y: v.y - (dy * box.h) / 4 }));
+  }
+  const moved = view.k > 1 || view.x !== HOME.x || view.y !== HOME.y;
+
   function pick(d: SimNode) {
     const n = d.n!;
     if (gesture.current.moved) return; // the end of a drag, not a tap
@@ -276,6 +282,16 @@ export function Bubble({
           style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
           role="img"
           aria-label={title}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+            if (dir) {
+              e.preventDefault();
+              pan(dir[0] / 2, dir[1] / 2);
+            } else if (e.key === "+" || e.key === "=") zoomAt({ x: cx, y: cy }, 1.6);
+            else if (e.key === "-") zoomAt({ x: cx, y: cy }, 1 / 1.6);
+            else if (e.key === "0") reset();
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -356,8 +372,24 @@ export function Bubble({
             })}
           </g>
         </svg>
+        <div className="absolute bottom-1 left-1 grid grid-cols-3 gap-0.5">
+          <span />
+          <ZoomButton label="Mover para cima" onClick={() => pan(0, -1)}>
+            ↑
+          </ZoomButton>
+          <span />
+          <ZoomButton label="Mover para a esquerda" onClick={() => pan(-1, 0)}>
+            ←
+          </ZoomButton>
+          <ZoomButton label="Mover para baixo" onClick={() => pan(0, 1)}>
+            ↓
+          </ZoomButton>
+          <ZoomButton label="Mover para a direita" onClick={() => pan(1, 0)}>
+            →
+          </ZoomButton>
+        </div>
         <div className="absolute right-1 bottom-1 flex gap-1">
-          {view.k > 1 && (
+          {moved && (
             <ZoomButton label="Voltar ao início" onClick={reset}>
               ⟲
             </ZoomButton>
@@ -376,7 +408,7 @@ export function Bubble({
         </p>
       )}
       <p className="mt-1 text-xs text-subtle">
-        Arraste para mover, use a pinça ou os botões para zoom e toque em alguém para focar
+        Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar
         {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
       </p>
       {selected && (

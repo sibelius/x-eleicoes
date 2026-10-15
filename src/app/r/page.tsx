@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
 import { InviteBadge } from "@/components/InviteBadge";
 import { SIDE, sharePath, shareTweetUrl } from "@/lib/links";
-import { GlobalMap } from "@/components/GlobalMap";
-import { getBubbleSize, getFamous, listMembers } from "@/lib/network";
+import { Bubble } from "@/components/Bubble";
+import { getBubbleSize, getFamous, getGlobalNetwork, listMembers } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
@@ -62,8 +62,12 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
             </p>
           </div>
           <div className="mt-4">
-            <GlobalMap
-              title="A bolha das bolhas"
+            <Bubble
+              me={null}
+              nodes={await getGlobalNetwork()}
+              shareBase={appUrl()}
+              title="A bolha de todo mundo"
+              readOnly
               shareUrl={shareTweetUrl(appUrl(), null, { red, total: red + green })}
             />
           </div>
