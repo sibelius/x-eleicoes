@@ -6,6 +6,8 @@ import { TallyBar } from "@/components/TallyBar";
 import { sharePath, shareTweetUrl } from "@/lib/links";
 import { getNetwork, getShare, resolveUser } from "@/lib/network";
 import { appUrl } from "@/lib/session";
+import { viewCount } from "@/lib/views";
+import { ViewBeacon } from "@/components/ViewBeacon";
 import Link from "next/link";
 
 async function load(params: PageProps<"/r/[handle]">["params"]) {
@@ -41,6 +43,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
+  const views = await viewCount(user.id);
   return (
     <>
       <div className="flex items-center gap-3">
@@ -61,7 +64,11 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       )}
       <div className="mt-6 rounded-2xl border border-line bg-card p-4">
         <TallyBar tally={share.tally} />
+        <p className="mt-2 text-xs text-subtle">
+          👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} esta bolha
+        </p>
       </div>
+      <ViewBeacon ids={[user.id]} />
       <a
         href={`/?ref=${encodeURIComponent(share.user.id)}`}
         className="mt-6 self-start rounded-full bg-fg px-6 py-3 font-semibold text-bg"
@@ -75,6 +82,12 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold"
       >
         Compartilhar esta bolha no X
+      </a>
+      <a
+        href={`/c?b=${encodeURIComponent(share.user.username)}`}
+        className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold"
+      >
+        Comparar com a minha bolha
       </a>
       <Link href="/r" className="mt-3 self-start text-sm text-subtle underline">
         Ver todas as bolhas

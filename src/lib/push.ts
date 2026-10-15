@@ -1,0 +1,102 @@
+import "server-only";
+import webpush from "web-push";
+import { db } from "./db";
+
+export function pushPublicKey() {
+  return process.env.VAPID_PUBLIC_KEY ?? null;
+}
+
+let configured = false;
+function ready() {
+  const pub = process.env.VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) return false;
+  if (!configured) {
+    webpush.setVapidDetails("mailto:sibelius@woovi.com", pub, priv);
+    configured = true;
+  }
+  return true;
+}
+
+type Payload = { title: string; body: string; url: string };
+
+/** Push to the given browser subscriptions; dead ones (404/410) are removed. */
+async function send(rows: Record<string, unknown>[], payload: Payload) {
+  const client = await db();
+  let sent = 0;
+  await Promise.all(
+    rows.map(async (row) => {
+      const endpoint = String(row.endpoint);
+      try {
+        await webpush.sendNotification(
+          { endpoint, keys: { p256dh: String(row.p256dh), auth: String(row.auth) } },
+          JSON.stringify(payload),
+        );
+        sent++;
+      } catch (e) {
+        const status = (e as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) {
+          await client.execute({ sql: "DELETE FROM push_subs WHERE endpoint = ?", args: [endpoint] });
+        } else {
+          console.error("[push] send failed", status, e);
+        }
+      }
+    }),
+  );
+  return sent;
+}
+
+async function sendTo(uid: string, payload: Payload) {
+  const client = await db();
+  const r = await client.execute({ sql: "SELECT endpoint, p256dh, auth FROM push_subs WHERE uid = ?", args: [uid] });
+  return send(r.rows, payload);
+}
+
+/** Tell every member whose bubble includes the newcomer (follows, followed by, or invite link). */
+export async function notifyNetworkJoined(newcomer: { id: string; username: string }, url: string) {
+  if (!ready()) return 0;
+  const client = await db();
+  const r = await client.execute({
+    sql: `WITH rel AS (
+            SELECT src AS id FROM edges WHERE dst = :uid
+            UNION SELECT dst FROM edges WHERE src = :uid
+            UNION SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL
+          )
+          SELECT s.endpoint, s.p256dh, s.auth FROM push_subs s
+          JOIN rel ON rel.id = s.uid WHERE s.uid <> :uid`,
+    args: { uid: newcomer.id },
+  });
+  return send(r.rows, {
+    title: "Alguém da sua rede entrou",
+    body: `@${newcomer.username} entrou no Minha Rede Vota. Veja como sua bolha mudou.`,
+    url,
+  });
+}
+
+/** "N people saw your bubble today": at most one push per owner every 30 minutes. */
+export async function notifyBubbleViewed(uid: string, origin: string) {
+  if (!ready()) return;
+  const client = await db();
+  const now = Date.now();
+  // Claim the slot atomically so concurrent views don't both send.
+  const claim = await client.execute({
+    sql: `INSERT INTO view_pushes (uid, at) VALUES (?, ?)
+          ON CONFLICT(uid) DO UPDATE SET at = excluded.at WHERE view_pushes.at < ?`,
+    args: [uid, now, now - 30 * 60 * 1000],
+  });
+  if (!claim.rowsAffected) return;
+  const day = new Date().toISOString().slice(0, 10);
+  const [today, total] = await client.batch(
+    [
+      { sql: "SELECT COUNT(*) AS n FROM views WHERE uid = ? AND day = ?", args: [uid, day] },
+      { sql: "SELECT COUNT(DISTINCT visitor) AS n FROM views WHERE uid = ?", args: [uid] },
+    ],
+    "read",
+  );
+  const n = Number(today.rows[0].n);
+  await sendTo(uid, {
+    title: "Estão vendo a sua bolha 👀",
+    body: `${n} ${n === 1 ? "pessoa viu" : "pessoas viram"} sua bolha hoje (${Number(total.rows[0].n)} no total).`,
+    url: `${origin}/app`,
+  });
+}

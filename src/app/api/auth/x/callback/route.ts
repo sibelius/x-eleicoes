@@ -1,6 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
+import { notifyNetworkJoined } from "@/lib/push";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
 import { accessToken } from "@/lib/x-oauth1";
@@ -45,6 +46,8 @@ export async function GET(req: NextRequest) {
       if (fetchFollowsEnabled() && !apifyEnabled()) await importFollowsFromApi(client, access_token, me.id);
     }
 
+    const existing = await client.execute({ sql: "SELECT 1 FROM users WHERE id = ?", args: [who.id] });
+    const isNew = existing.rows.length === 0;
     const ref = oauth.ref && oauth.ref !== who.id ? oauth.ref : null;
     // OAuth 1.0a gives no display name/photo: keep what we already know instead of overwriting it.
     await client.execute({
@@ -55,9 +58,10 @@ export async function GET(req: NextRequest) {
               avatar = COALESCE(excluded.avatar, users.avatar)`,
       args: [who.id, who.username, who.name, who.avatar, ref, Date.now()],
     });
-    if (apifyEnabled()) {
-      // Scraping can take minutes: run it after the redirect instead of blocking the login.
-      after(async () => {
+    // Scraping can take minutes: run it after the redirect instead of blocking the login.
+    // Then tell the newcomer's network, once their follow edges are known.
+    after(async () => {
+      if (apifyEnabled()) {
         try {
           const totals = await importFollowsFromApify(client, who.id, who.username);
           console.log(
@@ -68,8 +72,16 @@ export async function GET(req: NextRequest) {
         } catch (e) {
           console.error("[apify] follow import failed", e);
         }
-      });
-    }
+      }
+      if (isNew) {
+        try {
+          const sent = await notifyNetworkJoined(who, `${origin}/app`);
+          console.log(`[push] @${who.username} joined, notified ${sent}`);
+        } catch (e) {
+          console.error("[push] notify failed", e);
+        }
+      }
+    });
     console.log(`[auth] login ok @${who.username} (oauth${oauth.v === 1 ? "1.0a" : "2"})`);
     const res = NextResponse.redirect(`${origin}/app`);
     res.cookies.set(sessionCookie.name, await createSessionToken(who.id), sessionCookie.options);

@@ -48,6 +48,27 @@ const SCHEMA = [
     name TEXT,
     avatar TEXT
   )`,
+  // Web push subscriptions (one per browser) for "someone from your network joined".
+  `CREATE TABLE IF NOT EXISTS push_subs (
+    endpoint TEXT PRIMARY KEY,
+    uid TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS push_subs_uid ON push_subs (uid)`,
+  // Unique visitors per bubble per day (uid "_site" = the whole site); visitor = anonymous cookie id.
+  `CREATE TABLE IF NOT EXISTS views (
+    uid TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    day TEXT NOT NULL,
+    PRIMARY KEY (uid, visitor, day)
+  )`,
+  // Last "someone saw your bubble" push per owner, to send at most one every 30 minutes.
+  `CREATE TABLE IF NOT EXISTS view_pushes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
 ];
 
 export async function db(): Promise<Client> {

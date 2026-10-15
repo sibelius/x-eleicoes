@@ -244,3 +244,19 @@ export async function getShare(uid: string) {
     members: rows.length,
   };
 }
+
+/** Two bubbles side by side, plus the people both networks share. */
+export async function getComparison(a: string, b: string) {
+  const [ua, ub] = await Promise.all([resolveUser(a), resolveUser(b)]);
+  if (!ua || !ub) return null;
+  const [sa, sb, na, nb] = await Promise.all([getShare(ua.id), getShare(ub.id), getNetwork(ua.id), getNetwork(ub.id)]);
+  if (!sa || !sb) return null;
+  const inB = new Set(nb.nodes.map((n) => n.id));
+  const shared = na.nodes.filter((n) => inB.has(n.id));
+  return {
+    a: { ...sa, nodes: na.nodes },
+    b: { ...sb, nodes: nb.nodes },
+    shared: shared.length,
+    sharedMembers: shared.filter((n) => n.member).slice(0, 24),
+  };
+}

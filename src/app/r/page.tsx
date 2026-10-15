@@ -5,6 +5,8 @@ import { sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
 import { getGlobalNetwork, listMembers } from "@/lib/network";
 import { appUrl } from "@/lib/session";
+import { viewCount } from "@/lib/views";
+import { SITE } from "@/lib/views-shared";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -33,12 +35,17 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
   const members = await listMembers(q);
   const lula = members.filter((m) => m.vote === "lula").length;
   const bolsonaro = members.filter((m) => m.vote === "bolsonaro").length;
+  const visitors = await viewCount(SITE);
   return (
     <>
       {!q && (
         <>
           <div className="mt-6 rounded-2xl border border-line bg-card p-4">
             <TallyBar tally={{ lula, bolsonaro, total: lula + bolsonaro }} />
+            <p className="mt-2 text-xs text-subtle">
+              {members.length} {members.length === 1 ? "pessoa entrou" : "pessoas entraram"} · 👀 {visitors}{" "}
+              {visitors === 1 ? "visitante" : "visitantes"} no site
+            </p>
           </div>
           <div className="mt-4">
             <Bubble

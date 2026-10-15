@@ -13,13 +13,15 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "@vercel/analytics": "1.5.0",
     "@zip.js/zip.js": "2.18.2",
     "d3-force": "^3.0.0",
     "jose": "^6.2.12",
     "next": "16.4.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -27,6 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.4.1",
     "tailwindcss": "^4",

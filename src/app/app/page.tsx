@@ -2,10 +2,13 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { ImportArchive } from "@/components/ImportArchive";
+import { PushToggle } from "@/components/PushToggle";
 import { TallyBar } from "@/components/TallyBar";
 import { VotePanel } from "@/components/VotePanel";
-import { inviteLink, inviteTweetUrl, pct, sharePath, shareTweetUrl } from "@/lib/links";
+import { inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
+import { viewCount } from "@/lib/views";
 import { getMe, getNetwork } from "@/lib/network";
+import { pushPublicKey } from "@/lib/push";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
 
@@ -25,7 +28,9 @@ async function Dashboard() {
   const { nodes, tally, counts } = await getNetwork(uid);
   const base = appUrl();
   const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
-  const l = pct(tally.lula, tally.total);
+  // Joined but haven't voted: worth a public nudge.
+  const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
+  const views = await viewCount(me.id);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -53,6 +58,9 @@ async function Dashboard() {
           <section className="order-2 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="mb-3 text-lg font-semibold">Como sua rede vota</h2>
             <TallyBar tally={tally} />
+            <p className="mt-2 text-sm text-subtle">
+              👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} sua bolha
+            </p>
             <div className="mt-4 flex flex-wrap gap-2 text-sm">
               <a
                 className="rounded-full bg-fg px-4 py-2 text-bg"
@@ -66,6 +74,16 @@ async function Dashboard() {
                 Ver página pública
               </a>
             </div>
+            <form action="/c" className="mt-3 flex gap-2 text-sm">
+              <input type="hidden" name="a" value={me.username} />
+              <input
+                name="b"
+                required
+                placeholder="Comparar com @…"
+                className="min-w-0 flex-1 rounded-full border border-line bg-bg px-4 py-2"
+              />
+              <button className="rounded-full border border-line px-4 py-2">Comparar</button>
+            </form>
           </section>
           <div className="order-3 min-w-0 lg:order-none">
             <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} />
@@ -90,6 +108,20 @@ async function Dashboard() {
             >
               Postar convite no X
             </a>
+            {silent.length > 0 && (
+              <div className="mt-4 rounded-xl bg-muted p-3 text-sm">
+                <b>{silent.length}</b> {silent.length === 1 ? "pessoa entrou" : "pessoas entraram"} mas ainda não{" "}
+                {silent.length === 1 ? "votou" : "votaram"}.
+                <a
+                  className="mt-2 block w-fit rounded-full bg-fg px-4 py-2 text-bg"
+                  href={nudgeTweetUrl(base, me.id, silent)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Cobrar o voto no X
+                </a>
+              </div>
+            )}
             {pendingMembers.length > 0 && (
               <ul className="mt-4 grid gap-2 text-sm">
                 {pendingMembers.map((n) => (
@@ -110,7 +142,12 @@ async function Dashboard() {
               </ul>
             )}
           </section>
-          <div className="order-5 lg:order-none">
+          {pushPublicKey() && (
+            <div className="order-5 lg:order-none">
+              <PushToggle publicKey={pushPublicKey()!} />
+            </div>
+          )}
+          <div className="order-6 lg:order-none">
             <ImportArchive counts={counts} />
           </div>
         </aside>

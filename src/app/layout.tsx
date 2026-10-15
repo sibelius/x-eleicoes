@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { ViewBeacon } from "@/components/ViewBeacon";
+import { SITE } from "@/lib/views-shared";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -11,6 +14,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
 
 const REPO_URL = "https://github.com/sibelius/x-eleicoes";
 
@@ -30,6 +34,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             github.com/sibelius/x-eleicoes
           </a>
         </footer>
+        <Analytics />
+        <ViewBeacon ids={[SITE]} />
       </body>
     </html>
   );
