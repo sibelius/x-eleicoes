@@ -75,8 +75,11 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
   });
 }
 
-/** Tell the voter's network (follows, followed by, invite link) which side they picked. At most one per voter every 30 minutes. */
-export async function notifyNetworkVoted(voter: string, vote: "red" | "green", origin: string) {
+/**
+ * Tell the voter's network (follows, followed by, invite link) which side they picked, or that they
+ * switched sides (`from` = their previous vote). At most one per voter every 30 minutes.
+ */
+export async function notifyNetworkVoted(voter: string, vote: "red" | "green", origin: string, from?: "red" | "green" | null) {
   if (!ready()) return 0;
   const client = await db();
   const now = Date.now();
@@ -105,9 +108,16 @@ export async function notifyNetworkVoted(voter: string, vote: "red" | "green", o
   );
   const username = who.rows[0]?.username as string | undefined;
   if (!username) return 0;
+  const switched = from && from !== vote;
   return send(subs.rows, {
-    title: vote === "red" ? "Alguém da sua rede votou 🔴" : "Alguém da sua rede votou 🟢",
-    body: `@${username} escolheu o ${SIDE[vote]}. Veja como sua bolha mudou.`,
+    title: switched
+      ? `@${username} trocou de lado ${from === "red" ? "🔴 → 🟢" : "🟢 → 🔴"}`
+      : vote === "red"
+        ? "Alguém da sua rede votou 🔴"
+        : "Alguém da sua rede votou 🟢",
+    body: switched
+      ? `@${username} saiu do ${SIDE[from]} e foi pro ${SIDE[vote]}. Veja como sua bolha mudou.`
+      : `@${username} escolheu o ${SIDE[vote]}. Veja como sua bolha mudou.`,
     url: `${origin}${sharePath(username)}`,
   });
 }

@@ -88,6 +88,17 @@ const SCHEMA = [
     uid TEXT PRIMARY KEY,
     at INTEGER NOT NULL
   )`,
+  // Ad impressions and clicks per ad, per screen (placement), per visitor, per day.
+  `CREATE TABLE IF NOT EXISTS ad_stats (
+    ad TEXT NOT NULL,
+    placement TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    day TEXT NOT NULL,
+    views INTEGER NOT NULL DEFAULT 0,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (ad, placement, visitor, day)
+  )`,
+  `CREATE INDEX IF NOT EXISTS ad_stats_day ON ad_stats (day)`,
 ];
 
 export async function db(): Promise<Client> {

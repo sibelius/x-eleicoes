@@ -1,49 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-// The ads in rotation. UTMs tell each advertiser the visit came from here (and from which screen).
-const ADS = [
-  {
-    name: "Hodle",
-    href: "https://hodle.com.br/",
-    image: "/ads/hodle.png",
-    alt: "Hodle: cripto que funciona como Pix. Receba, guarde e pague em real ou em stablecoin.",
-  },
-  {
-    name: "iVendas",
-    href: "https://app.ivendas.app/broker",
-    image: "/ads/ivendas.png",
-    alt: "iVendas: todos os fornecedores de produtos Apple num só lugar, para revendedores.",
-  },
-  {
-    name: "conta.vc",
-    href: "https://www.conta.vc/",
-    image: "/ads/contavc.png",
-    alt: "conta.vc: seja o dono do seu dinheiro. Conta de pagamentos em reais, sem dívidas e sem bloqueios.",
-  },
-  {
-    name: "Rica",
-    href: "https://base.pro.rica.com.br/open-finance",
-    image: "/ads/rica.png",
-    alt: "Rica para profissionais: com Open Finance, todo o dinheiro do cliente num só lugar.",
-  },
-  {
-    name: "AtletIn",
-    href: "https://atletin.com/",
-    image: "/ads/atletin.png",
-    alt: "AtletIn: a vaquinha do atleta brasileiro. Doe via Pix e ganhe cupom das marcas que apoiam o esporte.",
-  },
-  {
-    name: "Guara Cloud",
-    href: "https://guaracloud.com/",
-    image: "/ads/guara.png",
-    alt: "Guara Cloud: deploy em segundos na cloud brasileira, com preços em Real.",
-  },
-];
+import { ADS } from "@/lib/ads";
 
 const CAMPAIGN = "minhabolha2026";
 const EVERY_MS = 5000;
+const SEEN_MS = 1000; // an ad counts as seen after this long on screen
+
+// Ad events wait here and go out in one request (or a beacon when the page is closing).
+const queue: { ad: string; placement: string; kind: "view" | "click" }[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flush(beacon = false) {
+  clearTimeout(flushTimer);
+  if (!queue.length) return;
+  const body = JSON.stringify({ events: queue.splice(0, 20) });
+  if (beacon && navigator.sendBeacon) navigator.sendBeacon("/api/ad", new Blob([body], { type: "application/json" }));
+  else fetch("/api/ad", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+  if (queue.length) flush(beacon);
+}
+
+function trackAd(ad: string, placement: string, kind: "view" | "click") {
+  queue.push({ ad, placement, kind });
+  if (kind === "click") return flush(true);
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flush, 3000);
+}
 
 function adUrl(href: string, placement: string) {
   const u = new URL(href);
@@ -59,6 +41,8 @@ export function AdCarousel({ placement }: { placement: string }) {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [onScreen, setOnScreen] = useState(false);
+  const seen = useRef(new Set<string>());
 
   const go = (i: number, smooth = true) => {
     const el = track.current;
@@ -70,6 +54,32 @@ export function AdCarousel({ placement }: { placement: string }) {
   useEffect(() => {
     go(Math.floor(Math.random() * ADS.length), false);
   }, []);
+
+  // Is the carousel at least half visible?
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting), { threshold: 0.5 });
+    io.observe(el);
+    const bye = () => flush(true);
+    window.addEventListener("pagehide", bye);
+    return () => {
+      io.disconnect();
+      window.removeEventListener("pagehide", bye);
+    };
+  }, []);
+
+  // One impression per ad per page view, once it has been on screen for a moment.
+  useEffect(() => {
+    const ad = ADS[index]?.name;
+    if (!ad || !onScreen || seen.current.has(ad)) return;
+    const t = setTimeout(() => {
+      if (document.visibilityState !== "visible") return;
+      seen.current.add(ad);
+      trackAd(ad, placement, "view");
+    }, SEEN_MS);
+    return () => clearTimeout(t);
+  }, [index, onScreen, placement]);
 
   useEffect(() => {
     if (paused) return;
@@ -101,6 +111,7 @@ export function AdCarousel({ placement }: { placement: string }) {
             href={adUrl(ad.href, placement)}
             target="_blank"
             rel="noopener sponsored"
+            onClick={() => trackAd(ad.name, placement, "click")}
             className="block w-full shrink-0 snap-center"
             aria-hidden={i !== index}
             tabIndex={i === index ? 0 : -1}

@@ -21,11 +21,13 @@ export async function POST(req: Request) {
     sql: "UPDATE users SET vote = ?, visibility = 'public', voted_at = ? WHERE id = ?",
     args: [vote, Date.now(), uid],
   });
-  if (before.rows[0]?.vote !== vote) {
+  const previous = (before.rows[0]?.vote as "red" | "green" | null | undefined) ?? null;
+  if (previous !== vote) {
     const origin = appUrl(req);
     after(() =>
-      notifyNetworkVoted(uid, vote as "red" | "green", origin)
-        .then((sent) => console.log(`[push] ${uid} voted ${vote}, notified ${sent}`))
+      // A switch (Red → Green or Green → Red) gets its own message.
+      notifyNetworkVoted(uid, vote as "red" | "green", origin, previous)
+        .then((sent) => console.log(`[push] ${uid} voted ${vote}${previous ? ` (was ${previous})` : ""}, notified ${sent}`))
         .catch((e) => console.error("[push] vote", e)),
     );
   }

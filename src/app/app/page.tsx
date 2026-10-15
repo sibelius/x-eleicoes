@@ -16,6 +16,7 @@ import { Timeline } from "@/components/Timeline";
 import { OtherSide } from "@/components/OtherSide";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pushPublicKey } from "@/lib/push";
+import { isAdmin } from "@/lib/admin";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
 
@@ -40,11 +41,12 @@ async function Dashboard() {
   const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const [views, invites, timeline, size] = await Promise.all([
+  const [views, invites, timeline, size, admin] = await Promise.all([
     viewCount(me.id),
     inviteCount(me.id),
     getTimeline(me.id),
     getBubbleSize(me.id),
+    isAdmin(),
   ]);
   const nextBadge = BADGE_STEPS.find((n) => n > invites);
 
@@ -65,6 +67,11 @@ async function Dashboard() {
           <Link href="/apoie" className="rounded-full bg-[var(--green)] px-3 py-1 font-semibold text-white">
             Doar
           </Link>
+          {admin && (
+            <Link href="/admin" className="font-semibold underline">
+              Admin
+            </Link>
+          )}
           <Link href="/ranking" className="text-subtle underline">
             Ranking
           </Link>

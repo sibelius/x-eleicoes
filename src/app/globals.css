@@ -10,6 +10,7 @@
   --red: #d4202c;
   --green: #13894a;
   --none: #a8a8ad;
+  --accent: #2f6fdb;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --red: #f0444f;
     --green: #2bb56b;
     --none: #5d5d64;
+    --accent: #5b93f0;
   }
 }
 

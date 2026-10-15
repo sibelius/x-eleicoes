@@ -94,6 +94,18 @@ export async function inviteCount(uid: string) {
   return Number(r.rows[0].n);
 }
 
+/** Every member's bubble tally (id, red, total): votes among who they follow, who follows them, and invites. */
+export const BUBBLE_TALLIES_SQL = `WITH v AS (SELECT id, vote FROM users WHERE vote IS NOT NULL),
+       rel AS (
+         SELECT e.src AS a, v.id AS b, v.vote FROM edges e JOIN v ON v.id = e.dst
+         UNION SELECT e.dst, v.id, v.vote FROM edges e JOIN v ON v.id = e.src
+         UNION SELECT u.invited_by, v.id, v.vote FROM users u JOIN v ON v.id = u.id WHERE u.invited_by IS NOT NULL
+         UNION SELECT v.id, u.id, u.vote FROM v JOIN users u ON u.invited_by = v.id WHERE u.vote IS NOT NULL
+       )
+       SELECT a AS id, SUM(vote = 'red') AS red, COUNT(*) AS total
+       FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
+       GROUP BY a`;
+
 export type Ranked = Me & { tally: Tally; redPct: number };
 
 /**
@@ -104,16 +116,7 @@ export async function getRankings(minVotes = 3) {
   const client = await db();
   const [tallies, members] = await client.batch(
     [
-      `WITH v AS (SELECT id, vote FROM users WHERE vote IS NOT NULL),
-       rel AS (
-         SELECT e.src AS a, v.id AS b, v.vote FROM edges e JOIN v ON v.id = e.dst
-         UNION SELECT e.dst, v.id, v.vote FROM edges e JOIN v ON v.id = e.src
-         UNION SELECT u.invited_by, v.id, v.vote FROM users u JOIN v ON v.id = u.id WHERE u.invited_by IS NOT NULL
-         UNION SELECT v.id, u.id, u.vote FROM v JOIN users u ON u.invited_by = v.id WHERE u.vote IS NOT NULL
-       )
-       SELECT a AS id, SUM(vote = 'red') AS red, COUNT(*) AS total
-       FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
-       GROUP BY a`,
+      BUBBLE_TALLIES_SQL,
       `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
          (SELECT COUNT(*) FROM users i WHERE i.invited_by = u.id) AS invites
        FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
