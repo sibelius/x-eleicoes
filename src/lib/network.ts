@@ -383,3 +383,52 @@ export async function getTimeline(uid: string) {
     .slice(0, 30);
   return { points, events };
 }
+
+export type BubbleSize = { accounts: number; members: number; voted: number; silent: Me[] };
+
+/** How big a bubble is: every account in it, who joined the app, who voted, and who joined without voting. */
+export async function getBubbleSize(uid: string | null): Promise<BubbleSize> {
+  const client = await db();
+  // uid null = the bubble of bubbles: every member plus every account linked to one.
+  const rel = uid
+    ? `SELECT dst AS id FROM edges WHERE src = :uid
+       UNION SELECT src FROM edges WHERE dst = :uid
+       UNION SELECT id FROM users WHERE invited_by = :uid
+       UNION SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL`
+    : `SELECT id FROM users WHERE id GLOB '[0-9]*'
+       UNION SELECT e.dst FROM edges e JOIN users u ON u.id = e.src
+       UNION SELECT e.src FROM edges e JOIN users u ON u.id = e.dst`;
+  const [size, silent] = await client.batch(
+    [
+      {
+        sql: `WITH rel AS (${rel})
+              SELECT COUNT(*) AS accounts, COUNT(u.id) AS members, COUNT(u.vote) AS voted
+              FROM rel LEFT JOIN users u ON u.id = rel.id AND u.id GLOB '[0-9]*'
+              WHERE rel.id <> COALESCE(:uid, '')`,
+        args: { uid },
+      },
+      {
+        sql: `WITH rel AS (${rel})
+              SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar
+              FROM rel JOIN users u ON u.id = rel.id LEFT JOIN profiles p ON p.id = u.id
+              WHERE u.vote IS NULL AND u.id GLOB '[0-9]*' AND u.id <> COALESCE(:uid, '')
+              ORDER BY u.created_at DESC LIMIT 60`,
+        args: { uid },
+      },
+    ],
+    "read",
+  );
+  const s = size.rows[0];
+  return {
+    accounts: Number(s.accounts),
+    members: Number(s.members),
+    voted: Number(s.voted),
+    silent: silent.rows.map((r) => ({
+      id: String(r.id),
+      username: String(r.username),
+      name: String(r.name),
+      avatar: (r.avatar as string | null) ?? null,
+      vote: null,
+    })),
+  };
+}

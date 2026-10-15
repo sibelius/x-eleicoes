@@ -4,7 +4,8 @@ import { TallyBar } from "@/components/TallyBar";
 import { InviteBadge } from "@/components/InviteBadge";
 import { sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
-import { getGlobalNetwork, listMembers } from "@/lib/network";
+import { getBubbleSize, getGlobalNetwork, listMembers } from "@/lib/network";
+import { BubbleSize } from "@/components/BubbleSize";
 import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
 import { SITE } from "@/lib/views-shared";
@@ -44,7 +45,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
   const members = await listMembers(q);
   const lula = members.filter((m) => m.vote === "lula").length;
   const bolsonaro = members.filter((m) => m.vote === "bolsonaro").length;
-  const visitors = await viewCount(SITE);
+  const [visitors, size] = await Promise.all([viewCount(SITE), q ? null : getBubbleSize(null)]);
   return (
     <>
       {!q && (
@@ -66,6 +67,11 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
               shareUrl={shareTweetUrl(appUrl(), null, { lula, total: lula + bolsonaro })}
             />
           </div>
+          {size && (
+            <div className="mt-4">
+              <BubbleSize size={size} />
+            </div>
+          )}
         </>
       )}
       <form className="mt-6 flex gap-2">

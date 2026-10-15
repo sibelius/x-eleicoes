@@ -8,7 +8,8 @@ import { VotePanel } from "@/components/VotePanel";
 import { VoteModal } from "@/components/VoteModal";
 import { BADGE_STEPS, inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
 import { viewCount } from "@/lib/views";
-import { getMe, getNetwork, getTimeline, inviteCount } from "@/lib/network";
+import { getBubbleSize, getMe, getNetwork, getTimeline, inviteCount } from "@/lib/network";
+import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
 import { pushPublicKey } from "@/lib/push";
@@ -33,7 +34,12 @@ async function Dashboard() {
   const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const [views, invites, timeline] = await Promise.all([viewCount(me.id), inviteCount(me.id), getTimeline(me.id)]);
+  const [views, invites, timeline, size] = await Promise.all([
+    viewCount(me.id),
+    inviteCount(me.id),
+    getTimeline(me.id),
+    getBubbleSize(me.id),
+  ]);
   const nextBadge = BADGE_STEPS.find((n) => n > invites);
 
   return (
@@ -100,6 +106,9 @@ async function Dashboard() {
           </section>
           <div className="order-3 min-w-0 lg:order-none">
             <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} />
+          </div>
+          <div className="order-3 min-w-0 lg:order-none">
+            <BubbleSize size={size} nudgeUrl={silent.length ? nudgeTweetUrl(base, me.id, silent) : undefined} />
           </div>
           <div className="order-3 min-w-0 lg:order-none">
             <Timeline {...timeline} />

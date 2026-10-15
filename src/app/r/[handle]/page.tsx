@@ -4,7 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
 import { sharePath, shareTweetUrl } from "@/lib/links";
-import { getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
+import { getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
+import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
 import { appUrl } from "@/lib/session";
@@ -45,7 +46,12 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
-  const [views, invites, timeline] = await Promise.all([viewCount(user.id), inviteCount(user.id), getTimeline(user.id)]);
+  const [views, invites, timeline, size] = await Promise.all([
+    viewCount(user.id),
+    inviteCount(user.id),
+    getTimeline(user.id),
+    getBubbleSize(user.id),
+  ]);
   return (
     <>
       <div className="flex items-center gap-3">
@@ -109,6 +115,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           />
         </div>
       )}
+      <div className="mt-4">
+        <BubbleSize size={size} />
+      </div>
       <div className="mt-4">
         <Timeline {...timeline} />
       </div>
