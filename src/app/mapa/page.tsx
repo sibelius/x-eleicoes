@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 
 export default function MapPage({ searchParams }: PageProps<"/mapa">) {
   return (
-    <main className="flex h-dvh flex-col">
+    // Exactly one screen tall, over the site bar and footer, so the map and its bottom card always fit.
+    <main className="fixed inset-x-0 top-0 z-40 flex h-dvh flex-col bg-bg">
       <nav className="flex items-center gap-3 px-3 pt-3 pb-1 text-sm">
         <Link href="/" className="text-subtle underline">
           Minha Bolha

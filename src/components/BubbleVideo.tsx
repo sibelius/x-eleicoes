@@ -42,9 +42,95 @@ function loadImage(src: string | null | undefined): Promise<HTMLImageElement | n
   });
 }
 
+// Pentatonic steps: each vote plays the next note, so the sound climbs as the count grows.
+const SCALE = [0, 2, 4, 7, 9];
+const note = (step: number, base: number) => base * Math.pow(2, (SCALE[step % 5] + 12 * Math.floor(step / 5)) / 12);
+
+/**
+ * Sound effects synthesized with Web Audio (no files) into a stream the recorder mixes in.
+ * Nothing goes to the speakers: it only ends up in the video.
+ */
+function createSfx() {
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx();
+  const out = ctx.createMediaStreamDestination();
+  const comp = ctx.createDynamicsCompressor();
+  const master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(comp).connect(out);
+  const noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const ch = noise.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  let lastVote = -1;
+
+  const tone = (freq: number, at: number, dur: number, type: OscillatorType, vol: number, drop = 1.5) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq * drop, at);
+    o.frequency.exponentialRampToValueAtTime(freq, at + 0.06);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + dur + 0.05);
+  };
+  const hiss = (at: number, dur: number, from: number, to: number, vol: number) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = 1.2;
+    f.frequency.setValueAtTime(from, at);
+    f.frequency.exponentialRampToValueAtTime(to, at + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(master);
+    src.start(at);
+    src.stop(at + dur + 0.05);
+  };
+
+  return {
+    track: out.stream.getAudioTracks()[0],
+    start: () => ctx.resume(),
+    /** The bubble flying together. */
+    whoosh(dur: number) {
+      hiss(ctx.currentTime, dur, 180, 2400, 0.25);
+    },
+    /** A vote landing: a pop plus a click; Red a register lower than Green. Dense timelines skip some so it doesn't turn to noise. */
+    vote(side: "red" | "green", n: number) {
+      const at = ctx.currentTime;
+      if (at - lastVote < 0.07) return;
+      lastVote = at;
+      const f = note(n % 15, side === "red" ? 220 : 440);
+      tone(f, at, 0.32, side === "red" ? "triangle" : "sine", 0.35);
+      tone(f * 2, at, 0.12, "sine", 0.08, 1);
+      hiss(at, 0.06, 3000, 1500, 0.12);
+    },
+    /** The verdict: an arpeggiated chord leaning to the winning side's register. */
+    finale(side: "red" | "green" | null) {
+      const at = ctx.currentTime;
+      const base = side === "red" ? 196 : side === "green" ? 392 : 262;
+      [0, 4, 7, 12].forEach((st, i) => tone(base * Math.pow(2, st / 12), at + i * 0.09, 1.6, "triangle", 0.18, 1));
+      hiss(at, 0.5, 4000, 800, 0.08);
+    },
+    close: () => void ctx.close(),
+  };
+}
+
 function pickMime() {
-  // X accepts MP4; Chrome (recent) and Safari can record it, older Chrome/Firefox only WebM.
-  for (const t of ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]) {
+  // X accepts MP4; Chrome (recent) and Safari can record it, older Chrome/Firefox only WebM. With audio codecs first.
+  for (const t of [
+    "video/mp4;codecs=avc1,mp4a.40.2",
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm",
+  ]) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
   }
   return null;
@@ -85,6 +171,8 @@ export function BubbleVideo({
     const mime = pickMime();
     if (!mime) return setState("unsupported");
     setState("loading");
+    // Created inside the click, before any await, so the browser lets it start.
+    const sfx = createSfx();
     const top = nodes.slice(0, 140);
     const sideColor = (v: string | null | undefined) => (v === "red" ? COLORS.red : v === "green" ? COLORS.green : COLORS.none);
     const dots: Dot[] = await Promise.all([
@@ -133,6 +221,7 @@ export function BubbleVideo({
     canvas.height = S;
     const ctx = canvas.getContext("2d")!;
     const stream = canvas.captureStream(FPS);
+    if (sfx?.track) stream.addTrack(sfx.track);
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -149,6 +238,7 @@ export function BubbleVideo({
     const reveal = (d: Dot, t: number) => {
       d.color = sideColor(d.vote);
       live[d.vote!]++;
+      sfx?.vote(d.vote!, live.red + live.green - 1);
       last = d;
       // Re-read the side targets and give the layout a nudge so the dot glides over.
       fx.x(target).strength((n) => (n.color === COLORS.none ? 0.03 : 0.22));
@@ -318,7 +408,9 @@ export function BubbleVideo({
     };
 
     setState("recording");
+    await sfx?.start();
     rec.start();
+    sfx?.whoosh(INTRO);
     const total = Math.round(TOTAL * FPS);
     let next = 0;
     for (let f = 0; f < total; f++) {
@@ -326,6 +418,8 @@ export function BubbleVideo({
       while (next < voters.length && voters[next].revealAt! <= t) reveal(voters[next++], t);
       // The video only animates the top of the bubble; the final scoreboard is the whole bubble's.
       if (t >= END) Object.assign(live, { red: tally.red, green: tally.green });
+      if (f === Math.round(END * FPS))
+        sfx?.finale(tally.red === tally.green ? null : tally.red > tally.green ? "red" : "green");
       // Keep the layout moving through the hold so the two sides finish pulling apart.
       if (f === Math.round(END * FPS)) sim.alpha(0.8);
       sim.tick();
@@ -335,6 +429,7 @@ export function BubbleVideo({
     }
     rec.stop();
     await stopped;
+    sfx?.close();
     const still = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
     const blob = new Blob(chunks, { type: mime.split(";")[0] });
     const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
