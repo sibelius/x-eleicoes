@@ -13,6 +13,19 @@ export function sharePath(username: string) {
   return `/r/${encodeURIComponent(username)}`;
 }
 
+export type Verdict = { label: string; side: "lula" | "bolsonaro" | null };
+
+/** A label people argue about: how closed the bubble is, and to which side. */
+export function bubbleVerdict(tally: { lula: number; total: number }): Verdict {
+  if (tally.total < 3) return { label: "Bolha em formação 🌱", side: null };
+  const l = pct(tally.lula, tally.total);
+  if (l >= 85) return { label: "Bolha fechada no Lula 🔒", side: "lula" };
+  if (l <= 15) return { label: "Bolha fechada no Bolsonaro 🔒", side: "bolsonaro" };
+  if (l >= 65) return { label: "Bolha inclinada pro Lula ↖️", side: "lula" };
+  if (l <= 35) return { label: "Bolha inclinada pro Bolsonaro ↗️", side: "bolsonaro" };
+  return { label: "Bolha mista ⚖️", side: null };
+}
+
 /** Tweet a bubble: your own (`own`), someone else's, or the combined one (no username). */
 export function shareTweetUrl(
   base: string,
@@ -22,11 +35,12 @@ export function shareTweetUrl(
 ) {
   const l = pct(tally.lula, tally.total);
   const split = `${l}% Lula × ${tally.total ? 100 - l : 0}% Bolsonaro`;
+  const v = tally.total >= 3 ? `${bubbleVerdict(tally).label} (${split})` : split;
   const text = !username
-    ? `A bolha de todo mundo no X: ${split}. E a sua?`
+    ? `A bolha de todo mundo no X: ${v}. E a sua?`
     : own
-      ? `Minha rede no X: ${split}. E a sua?`
-      : `A rede de @${username} no X: ${split}. E a sua?`;
+      ? `Minha bolha no X: ${v}. E a sua?`
+      : `A bolha de @${username} no X: ${v}. E a sua?`;
   const url = `${base}${username ? sharePath(username) : "/r"}`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }

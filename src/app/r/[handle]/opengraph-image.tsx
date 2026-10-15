@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { BubbleArt, OG, networkArt } from "@/lib/bubble-art";
-import { pct } from "@/lib/links";
+import { bubbleVerdict, pct } from "@/lib/links";
 import { getNetwork, getShare, resolveUser } from "@/lib/network";
 
 export const alt = "Como a minha rede do X vota";
@@ -28,7 +28,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
             <div style={{ width: `${l}%`, background: OG.lula }} />
             <div style={{ width: `${b}%`, background: OG.bolso }} />
           </div>
-          <div style={{ marginTop: 24, fontSize: 28, color: OG.subtle }}>{`${t.total} votos na rede · E a sua rede?`}</div>
+          <div style={{ display: "flex", marginTop: 24, fontSize: 30, fontWeight: 800 }}>{bubbleVerdict(t).label}</div>
+          <div style={{ marginTop: 12, fontSize: 28, color: OG.subtle }}>{`${t.total} votos na rede · E a sua rede?`}</div>
         </div>
         {art.length > 0 && <BubbleArt nodes={art} width={680} height={600} />}
       </div>
