@@ -129,6 +129,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
             centerLabel={share.user.username.slice(0, 1).toUpperCase()}
             readOnly
             shareUrl={shareTweetUrl(appUrl(), share.user.username, share.tally)}
+            tally={share.tally}
           />
         </div>
       )}

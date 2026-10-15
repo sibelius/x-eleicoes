@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
-import type { Me, NetworkNode } from "@/lib/network";
+import type { Me, NetworkNode, Tally } from "@/lib/network";
+import { BubbleVideo } from "./BubbleVideo";
 import { comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
@@ -47,6 +48,7 @@ export function Bubble({
   centerLabel = "VOCÊ",
   readOnly = false,
   shareUrl,
+  tally,
 }: {
   /** The owner in the middle; null for the combined bubble of everyone. */
   me: Me | null;
@@ -58,6 +60,8 @@ export function Bubble({
   readOnly?: boolean;
   /** X intent link to post this bubble. */
   shareUrl?: string;
+  /** Enables the "make a video" button. */
+  tally?: Tally;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState(WIDE);
@@ -378,6 +382,7 @@ export function Bubble({
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
+      {tally && <BubbleVideo me={me} nodes={nodes} tally={tally} title={me ? `A bolha de @${me.username}` : title} />}
     </div>
   );
 }
