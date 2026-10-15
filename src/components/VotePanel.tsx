@@ -43,8 +43,7 @@ export function VotePanel({ me }: { me: Me }) {
               background: vote === v ? (v === "lula" ? "var(--lula)" : "var(--bolso)") : undefined,
             }}
           >
-            <span className="block text-4xl leading-none font-black tabular-nums">{v === "lula" ? "13" : "22"}</span>
-            <span className="mt-1 block">{v === "lula" ? "Lula" : "Bolsonaro"}</span>
+            {v === "lula" ? "Lula" : "Bolsonaro"}
           </button>
         ))}
       </div>
