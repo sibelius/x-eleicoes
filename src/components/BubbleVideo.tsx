@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import { bubbleVerdict, pct, sharePath } from "@/lib/links";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
@@ -123,6 +123,50 @@ function createSfx() {
   };
 }
 
+// Cache: the last video per bubble, in this browser's IndexedDB, so it isn't re-recorded on every visit.
+// Bump VIDEO_VERSION when the video's look changes so old cached ones are re-made.
+const VIDEO_VERSION = 3;
+type Cached = { fp: string; blob: Blob; still: Blob | null; name: string };
+
+function idb<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    try {
+      const open = indexedDB.open("bubble-video", 1);
+      open.onupgradeneeded = () => open.result.createObjectStore("videos");
+      open.onerror = () => resolve(undefined);
+      open.onsuccess = () => {
+        const db = open.result;
+        const req = run(db.transaction("videos", mode).objectStore("videos"));
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(undefined);
+        req.transaction!.oncomplete = () => db.close();
+      };
+    } catch {
+      resolve(undefined); // private mode / storage blocked: just record again
+    }
+  });
+}
+
+/** Changes whenever what the video shows would change: the score, who voted which side and when. */
+function fingerprint(me: Me | null, nodes: NetworkNode[], tally: Tally, title: string) {
+  const votes = nodes
+    .slice(0, 140)
+    .map((n) => `${n.id}:${n.voted ? n.vote : ""}:${n.votedAt ?? ""}`)
+    .join(",");
+  let h = 2166136261;
+  const str = `${VIDEO_VERSION}|${title}|${me?.avatar ?? ""}|${me?.vote ?? ""}|${tally.red}/${tally.green}|${votes}`;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return String(h >>> 0);
+}
+
+// Phones/tablets only: desktop share sheets (e.g. macOS) accept files but don't offer X.
+function canShareFile(blob: Blob, name: string) {
+  return (
+    matchMedia("(pointer: coarse)").matches &&
+    Boolean(navigator.canShare?.({ files: [new File([blob], name, { type: blob.type })] }))
+  );
+}
+
 function pickMime() {
   // X accepts MP4; Chrome (recent) and Safari can record it, older Chrome/Firefox only WebM. With audio codecs first.
   for (const t of [
@@ -166,6 +210,25 @@ export function BubbleVideo({
   const [progress, setProgress] = useState(0);
   const [file, setFile] = useState<{ url: string; name: string; blob: Blob; still: Blob | null; canShare: boolean } | null>(null);
   const [note, setNote] = useState("");
+  const owner = me?.id ?? "all";
+  const fp = fingerprint(me, nodes, tally, title);
+
+  // Reuse the video recorded earlier in this browser if the bubble hasn't changed since.
+  useEffect(() => {
+    let alive = true;
+    let url = "";
+    idb<Cached>("readonly", (st) => st.get(owner)).then((c) => {
+      if (!alive || !c || c.fp !== fp) return;
+      url = URL.createObjectURL(c.blob);
+      setFile({ url, name: c.name, blob: c.blob, still: c.still, canShare: canShareFile(c.blob, c.name) });
+      setNote("Vídeo salvo neste aparelho. A bolha mudou? Ele é refeito sozinho.");
+      setState("done");
+    });
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [owner, fp]);
 
   async function record() {
     const mime = pickMime();
@@ -434,12 +497,11 @@ export function BubbleVideo({
     const blob = new Blob(chunks, { type: mime.split(";")[0] });
     const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
     const name = `${me ? `bolha-${me.username}` : "minha-bolha"}.${ext}`;
-    // Phones/tablets only: desktop share sheets (e.g. macOS) accept files but don't offer X.
-    const canShare =
-      matchMedia("(pointer: coarse)").matches &&
-      Boolean(navigator.canShare?.({ files: [new File([blob], name, { type: blob.type })] }));
-    setFile({ url: URL.createObjectURL(blob), name, blob, still, canShare });
+    setFile({ url: URL.createObjectURL(blob), name, blob, still, canShare: canShareFile(blob, name) });
+    setNote("");
     setState("done");
+    // One per bubble: replaces the previous one for this owner.
+    void idb("readwrite", (st) => st.put({ fp, blob, still, name } satisfies Cached, owner));
   }
 
   function download() {
@@ -504,7 +566,7 @@ export function BubbleVideo({
                 URL.revokeObjectURL(file.url);
                 setFile(null);
                 setNote("");
-                setState("idle");
+                void record();
               }}
               className="text-xs text-subtle underline"
             >
