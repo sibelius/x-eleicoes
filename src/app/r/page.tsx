@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
 import { InviteBadge } from "@/components/InviteBadge";
@@ -31,6 +32,9 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
         <Link href="/c" className="rounded-full border border-line px-4 py-2">
           Comparar bolhas
         </Link>
+      </div>
+      <div className="mt-4">
+        <SupportStrip />
       </div>
       <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
         <Members searchParams={searchParams} />

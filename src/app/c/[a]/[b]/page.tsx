@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -73,6 +74,9 @@ async function Compare({ params }: { params: Params }) {
         </Link>
       </div>
 
+      <div className="mt-4">
+        <SupportStrip />
+      </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {[c.a, c.b].map((s) => (
           <section key={s.user.id} className="grid min-w-0 content-start gap-4">

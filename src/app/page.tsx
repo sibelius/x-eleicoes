@@ -1,3 +1,4 @@
+import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { devLoginEnabled, getUserId } from "@/lib/session";
@@ -32,6 +33,9 @@ export default function Home({ searchParams }: PageProps<"/">) {
         Enquete informal entre usuários, sem valor estatístico — não é pesquisa eleitoral. Os votos são públicos e
         aparecem com o @ de quem votou. Você pode excluir seus dados quando quiser.
       </p>
+      <div className="mt-10">
+        <SupportStrip />
+      </div>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SupportStrip } from "@/components/SupportStrip";
 import { redirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { ImportArchive } from "@/components/ImportArchive";
@@ -71,6 +72,10 @@ async function Dashboard() {
           </form>
         </div>
       </header>
+
+      <div className="mt-4">
+        <SupportStrip />
+      </div>
 
       {/* Phones: one column ordered vote → result → bubble → invites → archive; desktop: two columns. */}
       <div className="mt-6 flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px]">

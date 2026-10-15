@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
@@ -131,6 +132,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           />
         </div>
       )}
+      <div className="mt-4">
+        <SupportStrip />
+      </div>
       <div className="mt-4">
         <BubbleSize size={size} />
       </div>

@@ -93,3 +93,8 @@ export function challengeTweetUrl(base: string, me: { username: string; vote: "l
   const text = `@${them} você vota ${theirs}, eu voto ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(me.username, them)}`)}`;
 }
+
+/** Buying an ad = a DM to @sseraphini on X. */
+export const AD_DM_URL = `https://x.com/messages/compose?recipient_id=2313873457&text=${encodeURIComponent(
+  "Olá! Quero anunciar no Minha Rede Vota. Meu produto/marca: ",
+)}`;

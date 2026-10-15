@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Donate } from "@/components/Donate";
+import { AD_DM_URL as AD_DM } from "@/lib/links";
 
 export const metadata: Metadata = {
   title: "Apoie · Minha Rede Vota",
   description: "Ajude a manter o Minha Rede Vota no ar: doe via Pix ou anuncie aqui.",
 };
 
-// @sseraphini on X.
-const OWNER_X_ID = "2313873457";
-const AD_DM = `https://x.com/messages/compose?recipient_id=${OWNER_X_ID}&text=${encodeURIComponent(
-  "Olá! Quero anunciar no Minha Rede Vota. Meu produto/marca: ",
-)}`;
 
 export default function ApoiePage() {
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import Link from "next/link";
 import { InviteBadge } from "@/components/InviteBadge";
@@ -18,6 +19,9 @@ export default function RankingPage() {
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Ranking das bolhas</h1>
       <p className="mt-1 text-subtle">Quem vive na bolha mais fechada? E quem está no meio do fogo cruzado?</p>
+      <div className="mt-4">
+        <SupportStrip />
+      </div>
       <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
         <Boards />
       </Suspense>

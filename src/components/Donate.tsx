@@ -4,13 +4,54 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { pixPayload } from "@/lib/pix";
 
-const PIX = {
+export const PIX = {
   key: "c78052c6-43e5-4732-a9ef-90fd615ed638",
   name: "Sibelius Seraphini",
   city: "Sao Paulo",
   txid: "ELEICOES2026",
 };
 const PRESETS = [5, 10, 25, 50, 100];
+
+/** Compact Pix for every screen: R$ 10 preselected, small QR on desktop, copy button first on phones. */
+export function DonateMini() {
+  const [amount, setAmount] = useState(10);
+  const [qr, setQr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const payload = pixPayload({ ...PIX, amount });
+  useEffect(() => {
+    QRCode.toDataURL(payload, { margin: 1, width: 160 }).then(setQr, () => setQr(null));
+  }, [payload]);
+  async function copy() {
+    await navigator.clipboard.writeText(payload);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <div className="flex items-center gap-3">
+      {qr && <img src={qr} alt="QR code Pix" className="hidden h-24 w-24 shrink-0 rounded-lg bg-white p-1 sm:block" />}
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">💚 Apoie com Pix</div>
+        <div className="mt-1 flex flex-wrap gap-1.5 text-sm">
+          {[5, 10, 25].map((v) => (
+            <button
+              key={v}
+              onClick={() => setAmount(v)}
+              className={`rounded-full px-3 py-1 ${amount === v ? "bg-fg text-bg" : "border border-line"}`}
+            >
+              R$ {v}
+            </button>
+          ))}
+          <a href="/apoie" className="self-center px-1 text-xs text-subtle underline">
+            outro valor
+          </a>
+        </div>
+        <button onClick={copy} className="mt-2 rounded-full bg-[var(--bolso)] px-4 py-1.5 text-sm font-semibold text-white">
+          {copied ? "Copiado ✓ cole no app do banco" : `Copiar Pix de R$ ${amount}`}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function Donate() {
   const [amount, setAmount] = useState<number | null>(10);
