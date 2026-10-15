@@ -1,6 +1,8 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
+import { pct } from "./links";
+import { getShare } from "./network";
 
 export function pushPublicKey() {
   return process.env.VAPID_PUBLIC_KEY ?? null;
@@ -99,4 +101,43 @@ export async function notifyBubbleViewed(uid: string, origin: string) {
     body: `${n} ${n === 1 ? "pessoa viu" : "pessoas viram"} sua bolha hoje (${Number(total.rows[0].n)} no total).`,
     url: `${origin}/app`,
   });
+}
+
+/** Daily: tell each subscriber how their bubble changed since the last summary (skipped when nothing did). */
+export async function sendDailySummaries(origin: string) {
+  if (!ready()) return { users: 0, sent: 0 };
+  const client = await db();
+  const subs = await client.execute(
+    `SELECT DISTINCT s.uid, t.lula, t.bolsonaro, t.members FROM push_subs s LEFT JOIN tally_snapshots t ON t.uid = s.uid`,
+  );
+  let sent = 0;
+  for (const row of subs.rows) {
+    const uid = String(row.uid);
+    const share = await getShare(uid);
+    if (!share) continue;
+    const now = { lula: share.tally.lula, bolsonaro: share.tally.bolsonaro, members: share.members };
+    await client.execute({
+      sql: `INSERT INTO tally_snapshots (uid, lula, bolsonaro, members, at) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET lula = excluded.lula, bolsonaro = excluded.bolsonaro,
+              members = excluded.members, at = excluded.at`,
+      args: [uid, now.lula, now.bolsonaro, now.members, Date.now()],
+    });
+    if (row.lula == null) continue; // first snapshot: nothing to compare with yet
+    const dl = now.lula - Number(row.lula);
+    const db_ = now.bolsonaro - Number(row.bolsonaro);
+    const dm = now.members - Number(row.members);
+    if (!dl && !db_ && !dm) continue;
+    const parts = [
+      dm > 0 && `+${dm} ${dm === 1 ? "pessoa entrou" : "pessoas entraram"}`,
+      dl && `${dl > 0 ? "+" : ""}${dl} Lula`,
+      db_ && `${db_ > 0 ? "+" : ""}${db_} Bolsonaro`,
+    ].filter(Boolean);
+    const l = pct(now.lula, now.lula + now.bolsonaro);
+    sent += await sendTo(uid, {
+      title: "Sua bolha hoje 🗳️",
+      body: `${parts.join(" · ")}. Agora: ${l}% Lula × ${now.lula + now.bolsonaro ? 100 - l : 0}% Bolsonaro. Compartilhe!`,
+      url: `${origin}/app`,
+    });
+  }
+  return { users: subs.rows.length, sent };
 }

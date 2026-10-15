@@ -64,6 +64,14 @@ const SCHEMA = [
     day TEXT NOT NULL,
     PRIMARY KEY (uid, visitor, day)
   )`,
+  // Bubble totals at the last daily summary push, to tell what changed since.
+  `CREATE TABLE IF NOT EXISTS tally_snapshots (
+    uid TEXT PRIMARY KEY,
+    lula INTEGER NOT NULL,
+    bolsonaro INTEGER NOT NULL,
+    members INTEGER NOT NULL,
+    at INTEGER NOT NULL
+  )`,
   // Last "someone saw your bubble" push per owner, to send at most one every 30 minutes.
   `CREATE TABLE IF NOT EXISTS view_pushes (
     uid TEXT PRIMARY KEY,
