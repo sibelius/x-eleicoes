@@ -488,6 +488,7 @@ export async function getFamous(limit = 24): Promise<Famous[]> {
 }
 
 const AVATAR_PREFIX = "https://pbs.twimg.com/profile_images/";
+const AVATAR_SUFFIX = "_normal.jpg";
 
 /**
  * Every account in the bubble of bubbles, in a compact columnar shape for the 2D map:
@@ -512,9 +513,14 @@ export async function getMapPoints() {
     ],
     "read",
   );
+  // "<prefix>123/abc_normal.jpg" -> "123/abc" (the map adds both back).
   const short = (a: unknown) =>
-    typeof a === "string" ? (a.startsWith(AVATAR_PREFIX) ? a.slice(AVATAR_PREFIX.length) : a) : null;
-  const out = { prefix: AVATAR_PREFIX, id: [] as string[], u: [] as (string | null)[], a: [] as (string | null)[], m: [] as number[], l: [] as number[] };
+    typeof a !== "string"
+      ? null
+      : a.startsWith(AVATAR_PREFIX) && a.endsWith(AVATAR_SUFFIX)
+        ? a.slice(AVATAR_PREFIX.length, -AVATAR_SUFFIX.length)
+        : a;
+  const out = { prefix: AVATAR_PREFIX, suffix: AVATAR_SUFFIX, id: [] as string[], u: [] as (string | null)[], a: [] as (string | null)[], m: [] as number[], l: [] as number[] };
   for (const r of members.rows) {
     out.id.push(String(r.id));
     out.u.push(r.username as string);

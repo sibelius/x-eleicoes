@@ -20,6 +20,11 @@ const COLORS = {
 
 type View = { k: number; x: number; y: number };
 
+function avatarUrl(data: MapPoints, i: number) {
+  const a = data.a[i];
+  return !a ? null : a.startsWith("http") ? a : data.prefix + a + data.suffix;
+}
+
 function hash(s: string) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
@@ -127,8 +132,7 @@ export function GlobalMap({ title, shareUrl }: { title: string; shareUrl?: strin
             again.current();
           };
           el.onerror = () => images.current.set(i, "error");
-          const a = data.a[i]!;
-          el.src = a.startsWith("http") ? a : data.prefix + a;
+          el.src = avatarUrl(data, i)!;
         }
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -360,7 +364,7 @@ export function GlobalMap({ title, shareUrl }: { title: string; shareUrl?: strin
           <div className="flex min-w-0 items-center gap-2">
             {data.a[sel] && (
               <img
-                src={data.a[sel]!.startsWith("http") ? data.a[sel]! : data.prefix + data.a[sel]}
+                src={avatarUrl(data, sel)!}
                 alt=""
                 className="h-9 w-9 rounded-full"
               />
