@@ -27,6 +27,8 @@ export type NetworkNode = {
   strength: number;
   /** Combined bubble only: -1 (linked to Red voters) … 1 (Green voters). */
   lean?: number;
+  /** When they picked their side (ms), for the bubble video's timeline. */
+  votedAt?: number | null;
 };
 
 export type Tally = { red: number; green: number; total: number };
@@ -159,6 +161,7 @@ type Row = {
   name: string | null;
   avatar: string | null;
   vote: Vote | null;
+  voted_at: number | null;
   following: number;
   follower: number;
   invite: number;
@@ -182,7 +185,7 @@ async function networkRows(uid: string, nonMemberLimit: number): Promise<Row[]> 
         COALESCE(u.username, p.username) AS username,
         COALESCE(u.name, p.name) AS name,
         COALESCE(u.avatar, p.avatar) AS avatar,
-        u.vote AS vote
+        u.vote AS vote, u.voted_at AS voted_at
       FROM agg
       LEFT JOIN users u ON u.id = agg.id
       LEFT JOIN profiles p ON p.id = agg.id
@@ -218,6 +221,7 @@ export async function getNetwork(uid: string) {
       follower: Boolean(r.follower),
       invite: Boolean(r.invite),
       strength: (mutual ? 3 : r.following ? 2 : r.follower ? 1 : 0) + (r.invite ? 2 : 0),
+      votedAt: r.member && r.vote && r.voted_at != null ? Number(r.voted_at) : null,
     };
   });
   const client = await db();
@@ -256,7 +260,7 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
   });
   const [members, others] = await client.batch(
     [
-      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.voted_at
        FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
       {
         sql: `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
@@ -286,6 +290,7 @@ export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNod
         member: true,
         vote: (r.vote as Vote | null) ?? null,
         voted: Boolean(r.vote),
+        votedAt: r.vote && r.voted_at != null ? Number(r.voted_at) : null,
         strength: 2,
       }),
     ),

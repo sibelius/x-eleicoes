@@ -2,16 +2,34 @@
 
 import { useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
-import { bubbleVerdict, pct } from "@/lib/links";
+import { bubbleVerdict, pct, sharePath } from "@/lib/links";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
 
 const S = 1080; // square: plays well in the X timeline
 const FPS = 30;
-const FORM = 6; // seconds of the bubble forming
-const HOLD = 2.5; // seconds of the final frame
+const INTRO = 2.2; // seconds of the bubble forming, everyone still grey
+const PER_VOTE = 0.32; // seconds per vote in the timeline (squeezed to fit MIN_VOTES..MAX_VOTES)
+const MIN_VOTES = 3;
+const MAX_VOTES = 9;
+const HOLD = 3; // seconds of the final result
 const COLORS = { bg: "#0c0c0e", fg: "#f2f2f0", subtle: "#9c9ca3", muted: "#222226", red: "#f0444f", green: "#2bb56b", none: "#5d5d64" };
 
-type Dot = SimulationNodeDatum & { r: number; color: string; img: HTMLImageElement | null; me?: boolean; dim?: boolean };
+type Dot = SimulationNodeDatum & {
+  r: number;
+  color: string;
+  img: HTMLImageElement | null;
+  me?: boolean;
+  dim?: boolean;
+  username?: string | null;
+  /** Side picked, revealed when its turn in the timeline comes (time in video seconds). */
+  vote?: "red" | "green" | null;
+  votedAt?: number | null;
+  revealAt?: number;
+};
+type Spark = { x: number; y: number; vx: number; vy: number; color: string; born: number };
+
+const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+const day = (ms: number) => new Date(ms).toLocaleDateString("pt-BR", { day: "numeric", month: "short", timeZone: "America/Sao_Paulo" });
 
 function loadImage(src: string | null | undefined): Promise<HTMLImageElement | null> {
   if (!src) return Promise.resolve(null);
@@ -32,41 +50,82 @@ function pickMime() {
   return null;
 }
 
-/** Records a short video of the bubble forming (photos flying into place, then the result) to post on X. */
-export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes: NetworkNode[]; tally: Tally; title: string }) {
+/** The post's text and link, taken from the X intent URL (so the video and the plain share say the same). */
+function postText(shareUrl?: string) {
+  if (!shareUrl) return "Minha bolha no X 🔴🟢 E a sua?";
+  const q = new URL(shareUrl).searchParams;
+  return [q.get("text"), q.get("url")].filter(Boolean).join(" ");
+}
+
+/**
+ * Records a short video of the bubble forming (photos flying into place, then the result) to post on X.
+ * On phones the Web Share sheet sends the file straight to the X app; elsewhere "Postar no X" downloads it
+ * and opens the post (X's web intent can't attach media). Browsers can't put a video on the clipboard,
+ * so "Copiar imagem" copies the final frame as a PNG, which pastes into a post.
+ */
+export function BubbleVideo({
+  me,
+  nodes,
+  tally,
+  title,
+  shareUrl,
+}: {
+  me: Me | null;
+  nodes: NetworkNode[];
+  tally: Tally;
+  title: string;
+  shareUrl?: string;
+}) {
   const [state, setState] = useState<"idle" | "loading" | "recording" | "done" | "unsupported">("idle");
   const [progress, setProgress] = useState(0);
-  const [file, setFile] = useState<{ url: string; name: string; blob: Blob } | null>(null);
+  const [file, setFile] = useState<{ url: string; name: string; blob: Blob; still: Blob | null; canShare: boolean } | null>(null);
+  const [note, setNote] = useState("");
 
   async function record() {
     const mime = pickMime();
     if (!mime) return setState("unsupported");
     setState("loading");
     const top = nodes.slice(0, 140);
-    const colorOf = (v: string | null, isMe = false) => (v === "red" ? COLORS.red : v === "green" ? COLORS.green : isMe ? COLORS.fg : COLORS.none);
+    const sideColor = (v: string | null | undefined) => (v === "red" ? COLORS.red : v === "green" ? COLORS.green : COLORS.none);
     const dots: Dot[] = await Promise.all([
-      ...(me ? [loadImage(me.avatar).then((img): Dot => ({ r: 46, color: colorOf(me.vote, true), img, me: true, x: 0, y: 0, fx: 0, fy: 0 }))] : []),
+      ...(me
+        ? [loadImage(me.avatar).then((img): Dot => ({ r: 46, color: me.vote ? sideColor(me.vote) : COLORS.fg, img, me: true, x: 0, y: 0 }))]
+        : []),
       ...top.map((n, i) =>
         loadImage(n.member ? n.avatar : null).then((img): Dot => {
           const a = i * 2.39996;
           return {
             r: n.member ? 16 + n.strength * 4 : 5 + n.strength * 2,
-            color: colorOf(n.vote),
+            color: COLORS.none, // everyone starts grey; votes light them up one by one
             img,
             dim: !n.member,
+            username: n.username,
+            vote: n.voted ? n.vote : null,
+            votedAt: n.votedAt ?? null,
             // Start scattered far outside the frame, then fly in.
             x: Math.cos(a) * (700 + (i % 7) * 60),
             y: Math.sin(a) * (700 + (i % 5) * 60),
-            vote: n.vote,
-          } as Dot;
+          };
         }),
       ),
     ]);
+
+    // The votes, in the order they happened (unknown dates last), spread evenly over the timeline.
+    const voters = dots
+      .filter((d) => !d.me && d.vote)
+      .sort((a, b) => (a.votedAt ?? Infinity) - (b.votedAt ?? Infinity));
+    const VOTES = voters.length ? Math.min(MAX_VOTES, Math.max(MIN_VOTES, voters.length * PER_VOTE)) : 0;
+    voters.forEach((d, i) => (d.revealAt = INTRO + (VOTES * (i + 0.5)) / voters.length));
+    const END = INTRO + VOTES;
+    const TOTAL = END + HOLD;
+
+    const target = (d: Dot) => (d.color === COLORS.red ? -190 : d.color === COLORS.green ? 190 : 0);
+    const fx = forceX<Dot>(target).strength((d) => (d.color === COLORS.none ? 0.03 : 0.22));
     const sim = forceSimulation(dots)
-      .force("x", forceX<Dot>((d) => (d.color === COLORS.red ? -170 : d.color === COLORS.green ? 170 : 0)).strength((d) => (d.color === COLORS.none ? 0.04 : 0.1)))
+      .force("x", fx)
       .force("y", forceY<Dot>(0).strength(0.08))
       .force("collide", forceCollide<Dot>((d) => d.r + 2).iterations(3))
-      .alphaDecay(1 - Math.pow(0.001, 1 / (FORM * FPS)))
+      .alphaDecay(0.02)
       .stop();
 
     const canvas = document.createElement("canvas");
@@ -79,95 +138,243 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = new Promise<void>((resolve) => (rec.onstop = () => resolve()));
 
-    const l = pct(tally.red, tally.total);
-    const b = tally.total ? 100 - l : 0;
     const verdict = bubbleVerdict(tally).label;
+    const sparks: Spark[] = [];
+    const live = { red: 0, green: 0 }; // counted so far
+    const shown = { red: 0, green: 0 }; // what the bar shows, easing toward live
     let scale = 1;
+    let shake = 0;
+    let last: Dot | null = null;
+
+    const reveal = (d: Dot, t: number) => {
+      d.color = sideColor(d.vote);
+      live[d.vote!]++;
+      last = d;
+      // Re-read the side targets and give the layout a nudge so the dot glides over.
+      fx.x(target).strength((n) => (n.color === COLORS.none ? 0.03 : 0.22));
+      sim.alpha(Math.max(sim.alpha(), 0.6));
+      for (let k = 0; k < 14; k++) {
+        const a = (k / 14) * Math.PI * 2 + Math.random() * 0.4;
+        const v = 4 + Math.random() * 5;
+        sparks.push({ x: d.x!, y: d.y!, vx: Math.cos(a) * v, vy: Math.sin(a) * v, color: d.color, born: t });
+      }
+      shake = 1;
+    };
 
     const draw = (t: number) => {
       ctx.fillStyle = COLORS.bg;
       ctx.fillRect(0, 0, S, S);
       // Fit the bubble into the middle area, easing the zoom so it doesn't jump.
       const box = dots.reduce((m, d) => Math.max(m, Math.abs(d.x!) + d.r, Math.abs(d.y!) + d.r), 1);
-      scale += (Math.min(1.6, 380 / box) - scale) * 0.15;
+      scale += (Math.min(1.6, 360 / box) - scale) * 0.12;
+      shake *= 0.85;
       ctx.save();
-      ctx.translate(S / 2, S / 2 + 30);
+      ctx.translate(S / 2 + (Math.random() - 0.5) * 10 * shake, S / 2 + 20 + (Math.random() - 0.5) * 10 * shake);
       ctx.scale(scale, scale);
       for (const d of dots) {
+        const since = d.revealAt != null && t >= d.revealAt ? t - d.revealAt : null;
+        // Pop: grows to 1.6× and settles back over ~0.5s when the vote lands.
+        const pop = since != null && since < 0.5 ? 1 + 0.6 * Math.sin((since / 0.5) * Math.PI) : 1;
+        const r = d.r * pop;
         ctx.globalAlpha = d.dim ? 0.55 : 1;
+        if (since != null && since < 0.9) {
+          // Shockwave ring in the side's color.
+          const k = since / 0.9;
+          ctx.globalAlpha = 1 - k;
+          ctx.lineWidth = 6 * (1 - k) + 1;
+          ctx.strokeStyle = d.color;
+          ctx.beginPath();
+          ctx.arc(d.x!, d.y!, d.r + 8 + ease(k) * 110, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          // Glow behind the dot.
+          ctx.shadowColor = d.color;
+          ctx.shadowBlur = 40 * (1 - k);
+        }
         ctx.beginPath();
-        ctx.arc(d.x!, d.y!, d.r, 0, Math.PI * 2);
+        ctx.arc(d.x!, d.y!, r, 0, Math.PI * 2);
         ctx.fillStyle = COLORS.muted;
         ctx.fill();
+        ctx.shadowBlur = 0;
         if (d.img) {
           ctx.save();
           ctx.beginPath();
-          ctx.arc(d.x!, d.y!, d.r * 0.84, 0, Math.PI * 2);
+          ctx.arc(d.x!, d.y!, r * 0.84, 0, Math.PI * 2);
           ctx.clip();
-          ctx.drawImage(d.img, d.x! - d.r, d.y! - d.r, d.r * 2, d.r * 2);
+          ctx.drawImage(d.img, d.x! - r, d.y! - r, r * 2, r * 2);
           ctx.restore();
         }
-        ctx.lineWidth = d.me ? 6 : Math.max(1.5, d.r * 0.16);
+        ctx.lineWidth = d.me ? 6 : Math.max(1.5, r * 0.16);
         ctx.strokeStyle = d.color;
         ctx.beginPath();
-        ctx.arc(d.x!, d.y!, d.r - ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.arc(d.x!, d.y!, r - ctx.lineWidth / 2, 0, Math.PI * 2);
         ctx.stroke();
+      }
+      // Sparks fly out of each new vote and fade.
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const p = sparks[i];
+        const age = t - p.born;
+        if (age > 0.8) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
+        ctx.globalAlpha = 1 - age / 0.8;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4 * (1 - age / 0.8) + 1, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
       ctx.globalAlpha = 1;
-      // Header.
+
+      // Header: title, then the date of the vote being counted (or the verdict at the end).
       ctx.fillStyle = COLORS.fg;
       ctx.font = "800 54px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(title, S / 2, 92);
-      // Result fades in as the bubble settles.
-      const reveal = Math.min(1, Math.max(0, (t - FORM * 0.6) / (FORM * 0.4)));
-      ctx.globalAlpha = reveal;
-      ctx.font = "800 64px system-ui, sans-serif";
+      const done = t >= END;
+      ctx.font = "700 40px system-ui, sans-serif";
+      if (done) {
+        const k = ease((t - END) / 0.6);
+        ctx.globalAlpha = k;
+        ctx.save();
+        ctx.translate(S / 2, 150);
+        ctx.scale(0.7 + 0.3 * k, 0.7 + 0.3 * k);
+        ctx.fillText(verdict, 0, 0);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      } else if (t >= INTRO && last) {
+        const when = (last as Dot).votedAt;
+        ctx.fillStyle = COLORS.subtle;
+        ctx.fillText(when ? `📅 ${day(when)}` : "Contando os votos…", S / 2, 150);
+      }
+
+      // Toast for the latest vote: slides up, holds, fades.
+      if (last && !done) {
+        const d = last as Dot;
+        const since = t - d.revealAt!;
+        const k = ease(since / 0.25);
+        ctx.globalAlpha = Math.min(1, since < 0.25 ? k : 1);
+        const y = S - 250 + (1 - k) * 30;
+        const label = `@${d.username ?? "alguém"} votou ${d.vote === "red" ? "Vermelho" : "Verde"}`;
+        ctx.font = "700 36px system-ui, sans-serif";
+        const w = ctx.measureText(label).width + 110;
+        ctx.fillStyle = d.color;
+        ctx.beginPath();
+        ctx.roundRect(S / 2 - w / 2, y - 40, w, 68, 34);
+        ctx.fill();
+        if (d.img) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(S / 2 - w / 2 + 40, y - 6, 24, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(d.img, S / 2 - w / 2 + 16, y - 30, 48, 48);
+          ctx.restore();
+        }
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "left";
+        ctx.fillText(label, S / 2 - w / 2 + 80, y + 7);
+        ctx.globalAlpha = 1;
+      }
+
+      // Live scoreboard: counts and bar ease toward the votes counted so far.
+      shown.red += (live.red - shown.red) * 0.2;
+      shown.green += (live.green - shown.green) * 0.2;
+      const sum = shown.red + shown.green;
+      const l = sum ? (shown.red / sum) * 100 : 50;
+      const lp = Math.round(l);
+      ctx.globalAlpha = t < INTRO ? ease((t - INTRO + 0.6) / 0.6) : 1;
+      ctx.font = "800 60px system-ui, sans-serif";
       ctx.fillStyle = COLORS.red;
       ctx.textAlign = "left";
-      ctx.fillText(`Vermelho ${l}%`, 70, S - 150);
+      ctx.fillText(sum ? `Vermelho ${lp}%` : "Vermelho", 70, S - 140);
       ctx.fillStyle = COLORS.green;
       ctx.textAlign = "right";
-      ctx.fillText(`Verde ${b}%`, S - 70, S - 150);
+      ctx.fillText(sum ? `Verde ${100 - lp}%` : "Verde", S - 70, S - 140);
       ctx.fillStyle = COLORS.muted;
-      ctx.fillRect(70, S - 120, S - 140, 22);
-      ctx.fillStyle = COLORS.red;
-      ctx.fillRect(70, S - 120, ((S - 140) * l) / 100, 22);
-      ctx.fillStyle = COLORS.green;
-      ctx.fillRect(70 + ((S - 140) * l) / 100, S - 120, ((S - 140) * b) / 100, 22);
-      ctx.fillStyle = COLORS.fg;
-      ctx.textAlign = "center";
-      ctx.font = "700 40px system-ui, sans-serif";
-      ctx.fillText(verdict, S / 2, 150);
+      ctx.fillRect(70, S - 115, S - 140, 22);
+      if (sum) {
+        ctx.fillStyle = COLORS.red;
+        ctx.fillRect(70, S - 115, ((S - 140) * l) / 100, 22);
+        ctx.fillStyle = COLORS.green;
+        ctx.fillRect(70 + ((S - 140) * l) / 100, S - 115, ((S - 140) * (100 - l)) / 100, 22);
+      }
       ctx.globalAlpha = 1;
       ctx.fillStyle = COLORS.subtle;
       ctx.font = "500 30px system-ui, sans-serif";
-      ctx.fillText(`${location.host} · E a sua bolha?`, S / 2, S - 50);
+      ctx.textAlign = "center";
+      const counted = Math.round(shown.red + shown.green);
+      ctx.fillText(
+        done || !voters.length
+          ? `${location.host}${me ? sharePath(me.username) : ""} · E a sua bolha?`
+          : `${counted} de ${voters.length} votos`,
+        S / 2,
+        S - 50,
+      );
     };
 
     setState("recording");
     rec.start();
-    const total = (FORM + HOLD) * FPS;
+    const total = Math.round(TOTAL * FPS);
+    let next = 0;
     for (let f = 0; f < total; f++) {
-      if (f < FORM * FPS) sim.tick();
-      draw(f / FPS);
+      const t = f / FPS;
+      while (next < voters.length && voters[next].revealAt! <= t) reveal(voters[next++], t);
+      // The video only animates the top of the bubble; the final scoreboard is the whole bubble's.
+      if (t >= END) Object.assign(live, { red: tally.red, green: tally.green });
+      // Keep the layout moving through the hold so the two sides finish pulling apart.
+      if (f === Math.round(END * FPS)) sim.alpha(0.8);
+      sim.tick();
+      draw(t);
       setProgress(f / total);
       await new Promise((r) => setTimeout(r, 1000 / FPS));
     }
     rec.stop();
     await stopped;
+    const still = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
     const blob = new Blob(chunks, { type: mime.split(";")[0] });
     const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
-    setFile({ url: URL.createObjectURL(blob), name: `minha-bolha.${ext}`, blob });
+    const name = `${me ? `bolha-${me.username}` : "minha-bolha"}.${ext}`;
+    // Phones/tablets only: desktop share sheets (e.g. macOS) accept files but don't offer X.
+    const canShare =
+      matchMedia("(pointer: coarse)").matches &&
+      Boolean(navigator.canShare?.({ files: [new File([blob], name, { type: blob.type })] }));
+    setFile({ url: URL.createObjectURL(blob), name, blob, still, canShare });
     setState("done");
   }
 
-  async function share() {
+  function download() {
     if (!file) return;
-    const f = new File([file.blob], file.name, { type: file.blob.type });
-    if (navigator.canShare?.({ files: [f] })) {
-      await navigator.share({ files: [f], text: "Minha bolha no X 🔴🟢 E a sua?" }).catch(() => {});
+    const a = document.createElement("a");
+    a.href = file.url;
+    a.download = file.name;
+    a.click();
+  }
+
+  async function post() {
+    if (!file) return;
+    if (file.canShare) {
+      // Share sheet: pick X and the video is already attached.
+      const f = new File([file.blob], file.name, { type: file.blob.type });
+      await navigator.share({ files: [f], text: postText(shareUrl) }).catch(() => {});
+      return;
+    }
+    download();
+    if (shareUrl) window.open(shareUrl, "_blank", "noopener");
+    setNote("Vídeo baixado. No post que abriu no X, anexe o vídeo (ou cole a imagem copiada).");
+  }
+
+  async function copy() {
+    if (!file?.still) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": file.still })]);
+      setNote("Imagem copiada! Cole (Ctrl/⌘+V) no post do X.");
+    } catch {
+      setNote("Não deu para copiar neste navegador. Use Baixar vídeo.");
     }
   }
 
@@ -186,15 +393,36 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
         <>
           <video src={file.url} autoPlay loop muted playsInline className="w-full max-w-xs rounded-xl" />
           <div className="flex flex-col gap-2">
-            <a href={file.url} download={file.name} className="rounded-full bg-fg px-3 py-1.5 text-center text-bg">
-              Baixar vídeo
-            </a>
-            {typeof navigator !== "undefined" && "share" in navigator && (
-              <button onClick={share} className="rounded-full border border-line px-3 py-1.5">
-                Compartilhar
+            <button onClick={post} className="rounded-full bg-fg px-3 py-1.5 text-bg">
+              𝕏 Postar no X
+            </button>
+            {file.still && typeof ClipboardItem !== "undefined" && (
+              <button onClick={copy} className="rounded-full border border-line px-3 py-1.5">
+                📋 Copiar imagem
               </button>
             )}
-            <span className="max-w-48 text-xs text-subtle">Baixe e poste no X junto com o seu link.</span>
+            <button onClick={download} className="rounded-full border border-line px-3 py-1.5">
+              ⬇️ Baixar vídeo
+            </button>
+            <button
+              onClick={() => {
+                URL.revokeObjectURL(file.url);
+                setFile(null);
+                setNote("");
+                setState("idle");
+              }}
+              className="text-xs text-subtle underline"
+            >
+              Gerar de novo
+            </button>
+            <span className="max-w-52 text-xs text-subtle" aria-live="polite">
+              {note ||
+                (file.canShare
+                  ? "Toque em Postar no X e escolha o X: o vídeo já vai anexado."
+                  : file.name.endsWith(".webm")
+                    ? "Este navegador gravou em WebM, que o X não aceita. Para postar o vídeo, gere no Chrome ou Safari atualizado."
+                    : "Postar no X baixa o vídeo e abre o post com o seu link: é só anexar.")}
+            </span>
           </div>
         </>
       )}

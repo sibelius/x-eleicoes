@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SIDE, sharePath } from "@/lib/links";
 import type { MapPoints } from "@/lib/network";
@@ -73,6 +74,9 @@ export function GlobalMap({
   const [data, setData] = useState<MapPoints | null>(null);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  // Read by the draw loop, so picking someone doesn't rebuild redraw/fit (which re-centered the view).
+  const selRef = useRef<number | null>(null);
+  const router = useRouter();
   const [full, setFull] = useState(false);
   const [query, setQuery] = useState(center ? `@${center}` : "");
   const [open, setOpen] = useState(false);
@@ -166,7 +170,7 @@ export function GlobalMap({
           ctx.fillStyle = layout.color[i];
           ctx.fill();
         }
-        if (i === selected) {
+        if (i === selRef.current) {
           ctx.lineWidth = 3;
           ctx.strokeStyle = "#fff";
           ctx.beginPath();
@@ -175,7 +179,12 @@ export function GlobalMap({
         }
       }
     });
-  }, [layout, data, selected]);
+  }, [layout, data]);
+
+  useEffect(() => {
+    selRef.current = selected;
+    redraw();
+  }, [selected, redraw]);
 
   const fit = useCallback(() => {
     const c = canvas.current;
@@ -274,7 +283,8 @@ export function GlobalMap({
   function onPointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = 0;
-    if (moved.current > 6 || !layout || !data) return;
+    // Touch taps jitter a few px; more than that is a drag.
+    if (moved.current > 12 || !layout || !data) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const { k, x, y } = view.current;
     const wx = (e.clientX - rect.left - x) / k;
@@ -289,6 +299,8 @@ export function GlobalMap({
         best = i;
       }
     }
+    // Tap someone to see who it is; tap them again to open their bubble.
+    if (best >= 0 && best === selected && data.u[best]) return router.push(sharePath(data.u[best]!));
     setSelected(best >= 0 ? best : null);
   }
 
@@ -460,7 +472,7 @@ export function GlobalMap({
           </div>
         )}
         <div className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-card/80 px-2 py-0.5 text-xs text-subtle">
-          {zoom.toFixed(zoom < 10 ? 1 : 0)}× · arraste para mover{full || page ? ", role para zoom" : ", ⌘/Ctrl + rolar ou pinça para zoom"}
+          {zoom.toFixed(zoom < 10 ? 1 : 0)}× · toque num avatar e de novo para abrir a bolha · arraste para mover{full || page ? ", role para zoom" : ", ⌘/Ctrl + rolar ou pinça para zoom"}
         </div>
       </div>
       {sel !== null && data && (
