@@ -237,7 +237,7 @@ export function Bubble({
   }
 
   return (
-    <div ref={wrap} className="rounded-2xl border border-line bg-card p-4">
+    <div ref={wrap} data-tour="bubble" className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -252,7 +252,7 @@ export function Bubble({
             </a>
           )}
         </div>
-        <div className="flex gap-1 text-sm">
+        <div data-tour="bubble-filters" className="flex gap-1 text-sm">
           {filters.map(([k, label]) => (
             <button
               key={k}

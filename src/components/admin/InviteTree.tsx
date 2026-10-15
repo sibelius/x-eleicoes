@@ -11,7 +11,7 @@ import { nodeTypes, type PersonFlowNode } from "./PersonNode";
 const DX = 44;
 
 /** The invite forest as radial trees: each tree is someone who came on their own and everyone who followed their link. */
-export function InviteTree({ nodes: all }: { nodes: AnalyzedNode[] }) {
+export function InviteTree({ nodes: all, base }: { nodes: AnalyzedNode[]; base: string }) {
   const [picked, setPicked] = useState<string | null>(null);
   const byId = useMemo(() => new Map(all.map((n) => [n.id, n])), [all]);
 
@@ -74,7 +74,7 @@ export function InviteTree({ nodes: all }: { nodes: AnalyzedNode[] }) {
 
   const shown = picked ? byId.get(picked) : null;
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
+    <div data-tour="invites-tree" className="grid gap-3 lg:grid-cols-[1fr_300px]">
       <div className="overflow-hidden rounded-2xl border border-line bg-card">
         <div className="h-[65vh] min-h-[420px]">
           <ReactFlow
@@ -99,7 +99,7 @@ export function InviteTree({ nodes: all }: { nodes: AnalyzedNode[] }) {
         </p>
       </div>
       <aside className="grid content-start gap-3">
-        {shown ? <NodeDetails n={shown} all={all} /> : <p className="rounded-2xl border border-line bg-card p-4 text-sm text-subtle">Clique em alguém para ver os números.</p>}
+        {shown ? <NodeDetails n={shown} all={all} base={base} /> : <p className="rounded-2xl border border-line bg-card p-4 text-sm text-subtle">Clique em alguém para ver os números.</p>}
       </aside>
     </div>
   );

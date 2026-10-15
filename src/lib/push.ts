@@ -1,7 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { db } from "./db";
-import { SIDE, pct, sharePath } from "./links";
+import { BADGE_STEPS, SIDE, pct, sharePath } from "./links";
 import { getShare } from "./network";
 
 export function pushPublicKey() {
@@ -54,7 +54,7 @@ async function sendTo(uid: string, payload: Payload) {
   return send(r.rows, payload);
 }
 
-/** Tell every member whose bubble includes the newcomer (follows, followed by, or invite link). */
+/** Tell every member whose bubble includes the newcomer (follows or followed by; the inviter gets their own push). */
 export async function notifyNetworkJoined(newcomer: { id: string; username: string }, url: string) {
   if (!ready()) return 0;
   const client = await db();
@@ -62,10 +62,10 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
     sql: `WITH rel AS (
             SELECT src AS id FROM edges WHERE dst = :uid
             UNION SELECT dst FROM edges WHERE src = :uid
-            UNION SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL
           )
           SELECT s.endpoint, s.p256dh, s.auth FROM push_subs s
-          JOIN rel ON rel.id = s.uid WHERE s.uid <> :uid`,
+          JOIN rel ON rel.id = s.uid
+          WHERE s.uid <> :uid AND s.uid NOT IN (SELECT invited_by FROM users WHERE id = :uid AND invited_by IS NOT NULL)`,
     args: { uid: newcomer.id },
   });
   return send(r.rows, {
@@ -120,6 +120,56 @@ export async function notifyNetworkVoted(voter: string, vote: "red" | "green", o
       : `@${username} escolheu o ${SIDE[vote]}. Veja como sua bolha mudou.`,
     url: `${origin}${sharePath(username)}`,
   });
+}
+
+/** Right when someone signs up through an invite link: tell the inviter, with their running total. */
+export async function notifyInviteJoined(inviter: string, newcomer: { username: string }, origin: string) {
+  if (!ready()) return 0;
+  const client = await db();
+  const r = await client.execute({ sql: "SELECT COUNT(*) AS n FROM users WHERE invited_by = ?", args: [inviter] });
+  const n = Number(r.rows[0].n);
+  const next = BADGE_STEPS.find((s) => s > n);
+  return sendTo(inviter, {
+    title: `@${newcomer.username} entrou pelo seu convite 🎉`,
+    body:
+      `${n === 1 ? "Sua primeira pessoa" : `Já são ${n} pessoas`} pelo seu link.` +
+      (next ? ` Faltam ${next - n} para o próximo selo.` : " Você é recrutador ouro 🥇"),
+    url: `${origin}/app`,
+  });
+}
+
+export type ShareKind = "bubble" | "compare";
+
+/**
+ * Someone posted a bubble (or a comparison) that includes `owner`'s: tell the owner.
+ * At most one per owner every 30 minutes, so nobody can spam it.
+ */
+export async function notifyShared(
+  owner: string,
+  share: { kind: ShareKind; sharer: string | null; other?: string | null; path: string },
+  origin: string,
+) {
+  if (!ready()) return 0;
+  const client = await db();
+  const now = Date.now();
+  const claim = await client.execute({
+    sql: `INSERT INTO share_pushes (uid, at) VALUES (?, ?)
+          ON CONFLICT(uid) DO UPDATE SET at = excluded.at WHERE share_pushes.at < ?`,
+    args: [owner, now, now - 30 * 60 * 1000],
+  });
+  if (!claim.rowsAffected) return 0;
+  const who = share.sharer ? `@${share.sharer}` : "Alguém";
+  const challenge = share.kind === "compare" && share.sharer && share.other === share.sharer;
+  const payload =
+    share.kind === "bubble"
+      ? { title: `${who} compartilhou sua bolha 📣`, body: "Sua bolha foi postada no X. Veja quem está olhando." }
+      : challenge
+        ? { title: `${who} te desafiou 👀`, body: "Postou no X uma comparação entre as bolhas de vocês. Quem está mais fechado?" }
+        : {
+            title: `${who} comparou sua bolha 📣`,
+            body: share.other ? `Sua bolha foi comparada com a de @${share.other} no X.` : "Sua bolha foi comparada no X.",
+          };
+  return sendTo(owner, { ...payload, url: `${origin}${share.path}` });
 }
 
 /** "N people saw your bubble today": at most one push per owner every 30 minutes. */

@@ -1,8 +1,8 @@
 // Building blocks for the admin screens.
 
-export function Card({ title, note, children, className = "" }: { title?: string; note?: string; children: React.ReactNode; className?: string }) {
+export function Card({ title, note, children, className = "", tour }: { title?: string; note?: string; children: React.ReactNode; className?: string; tour?: string }) {
   return (
-    <section className={`rounded-2xl border border-line bg-card p-4 ${className}`}>
+    <section data-tour={tour} className={`rounded-2xl border border-line bg-card p-4 ${className}`}>
       {title && <h2 className="font-semibold">{title}</h2>}
       {note && <p className="mt-0.5 text-xs text-subtle">{note}</p>}
       <div className={title || note ? "mt-3" : ""}>{children}</div>

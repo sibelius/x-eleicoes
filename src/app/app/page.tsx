@@ -19,6 +19,7 @@ import { pushPublicKey } from "@/lib/push";
 import { isAdmin } from "@/lib/admin";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
+import { Tour } from "@/components/Tour";
 
 export default function AppPage() {
   return (
@@ -54,7 +55,7 @@ async function Dashboard() {
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
       <VoteModal me={me} />
       <header className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div data-tour="me" className="flex items-center gap-3">
           {me.avatar && <img src={me.avatar} alt="" className="h-10 w-10 rounded-full" />}
           <div>
             <div className="font-semibold">
@@ -63,7 +64,8 @@ async function Dashboard() {
             <div className="text-sm text-subtle">@{me.username}</div>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-sm">
+        <div data-tour="nav" className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+          <Tour name="app" autoStart={!!me.vote} />
           <Link href="/apoie" className="rounded-full bg-[var(--green)] px-3 py-1 font-semibold text-white">
             Doar
           </Link>
@@ -74,6 +76,9 @@ async function Dashboard() {
           )}
           <Link href="/ranking" className="text-subtle underline">
             Ranking
+          </Link>
+          <Link href="/grafo" className="text-subtle underline">
+            A rede
           </Link>
           <Link href="/r" className="text-subtle underline">
             Todas as bolhas
@@ -87,14 +92,14 @@ async function Dashboard() {
         </div>
       </header>
 
-      <div className="mt-4">
+      <div data-tour="support" className="mt-4">
         <SupportStrip placement="app" />
       </div>
 
       {/* Phones: one column ordered vote → result → bubble → invites → archive; desktop: two columns. */}
       <div className="mt-6 flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px]">
         <div className="contents lg:grid lg:min-w-0 lg:content-start lg:gap-4">
-          <section className="order-2 rounded-2xl border border-line bg-card p-4 lg:order-none">
+          <section data-tour="tally" className="order-2 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="mb-3 text-lg font-semibold">De que lado está sua rede</h2>
             <TallyBar tally={tally} />
             <p className="mt-2 text-sm text-subtle">
@@ -113,7 +118,7 @@ async function Dashboard() {
                 Ver página pública
               </a>
             </div>
-            <form action="/c" className="mt-3 flex gap-2 text-sm">
+            <form action="/c" data-tour="compare" className="mt-3 flex gap-2 text-sm">
               <input type="hidden" name="a" value={me.username} />
               <input
                 name="b"
@@ -127,24 +132,24 @@ async function Dashboard() {
           <div className="order-3 min-w-0 lg:order-none">
             <Bubble me={me} nodes={nodes} shareBase={base} shareUrl={shareTweetUrl(base, me.username, tally, true)} tally={tally} />
           </div>
-          <div className="order-3 min-w-0 lg:order-none">
+          <div data-tour="size" className="order-3 min-w-0 lg:order-none">
             <BubbleSize size={size} nudgeUrl={silent.length ? nudgeTweetUrl(base, me.id, silent) : undefined} />
           </div>
-          <div className="order-3 min-w-0 lg:order-none">
+          <div data-tour="timeline" className="order-3 min-w-0 lg:order-none">
             <Timeline {...timeline} />
           </div>
         </div>
 
         <aside className="contents lg:grid lg:content-start lg:gap-4">
-          <div className="order-1 lg:order-none">
+          <div data-tour="vote" className="order-1 lg:order-none">
             <VotePanel me={me} />
           </div>
           {me.vote && (
-            <div className="order-4 lg:order-none">
+            <div data-tour="other-side" className="order-4 lg:order-none">
               <OtherSide me={{ ...me, vote: me.vote }} nodes={nodes} base={base} />
             </div>
           )}
-          <section className="order-4 rounded-2xl border border-line bg-card p-4 lg:order-none">
+          <section data-tour="invite" className="order-4 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="text-lg font-semibold">Chame sua rede</h2>
             <p className="mt-1 text-sm text-subtle">
               Quem entrar pelo seu link entra direto na sua bolha.
@@ -202,11 +207,11 @@ async function Dashboard() {
             )}
           </section>
           {pushPublicKey() && (
-            <div className="order-5 lg:order-none">
+            <div data-tour="push" className="order-5 lg:order-none">
               <PushToggle publicKey={pushPublicKey()!} />
             </div>
           )}
-          <div className="order-6 lg:order-none">
+          <div data-tour="import" className="order-6 lg:order-none">
             <ImportArchive counts={counts} />
           </div>
         </aside>

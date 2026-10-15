@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import { LiveBar } from "@/components/LiveBar";
+import { ShareTracker } from "@/components/ShareTracker";
 import { SITE } from "@/lib/views-shared";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </footer>
         <Analytics />
         <ViewBeacon ids={[SITE]} />
+        <ShareTracker />
       </body>
     </html>
   );

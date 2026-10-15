@@ -205,8 +205,10 @@ export async function getMemberGraph() {
   return { nodes, edges: edges.rows.map((r) => [String(r.src), String(r.dst)] as [string, string]) };
 }
 
+export type BubbleLean = { id: string; username: string; vote: Vote | null; red: number; green: number; total: number };
+
 /** Each member's bubble lean, with their own vote, for the polarization scatter. */
-export async function getBubbleLeans() {
+export async function getBubbleLeans(): Promise<BubbleLean[]> {
   const client = await db();
   const [tallies, members] = await client.batch(
     [BUBBLE_TALLIES_SQL, "SELECT id, username, vote FROM users WHERE id GLOB '[0-9]*'"],

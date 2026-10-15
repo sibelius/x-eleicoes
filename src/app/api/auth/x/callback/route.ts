@@ -1,7 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
-import { notifyNetworkJoined } from "@/lib/push";
+import { notifyInviteJoined, notifyNetworkJoined } from "@/lib/push";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
 import { accessToken } from "@/lib/x-oauth1";
@@ -58,6 +58,16 @@ export async function GET(req: NextRequest) {
               avatar = COALESCE(excluded.avatar, users.avatar)`,
       args: [who.id, who.username, who.name, who.avatar, ref, Date.now()],
     });
+    // Invited: tell the inviter right away (the network push below waits for the follow import).
+    if (isNew && ref) {
+      after(async () => {
+        const r = await client.execute({ sql: "SELECT invited_by FROM users WHERE id = ?", args: [who.id] });
+        const inviter = r.rows[0]?.invited_by as string | null;
+        if (!inviter) return; // the ref wasn't a member
+        const sent = await notifyInviteJoined(inviter, who, origin).catch((e) => (console.error("[push] invite", e), 0));
+        console.log(`[push] @${who.username} joined via ${inviter}, notified ${sent}`);
+      });
+    }
     // Scraping can take minutes: run it after the redirect instead of blocking the login.
     // Then tell the newcomer's network, once their follow edges are known.
     after(async () => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import { bubbleVerdict, pct, sharePath } from "@/lib/links";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
+import { trackShare } from "@/lib/share-client";
 
 const S = 1080; // square: plays well in the X timeline
 const FPS = 30;
@@ -517,11 +518,15 @@ export function BubbleVideo({
     if (file.canShare) {
       // Share sheet: pick X and the video is already attached.
       const f = new File([file.blob], file.name, { type: file.blob.type });
-      await navigator.share({ files: [f], text: postText(shareUrl) }).catch(() => {});
+      const shared = await navigator.share({ files: [f], text: postText(shareUrl) }).then(() => true, () => false);
+      if (shared && shareUrl) trackShare(shareUrl, "native");
       return;
     }
     download();
-    if (shareUrl) window.open(shareUrl, "_blank", "noopener");
+    if (shareUrl) {
+      trackShare(shareUrl);
+      window.open(shareUrl, "_blank", "noopener");
+    }
     setNote("Vídeo baixado. No post que abriu no X, anexe o vídeo (ou cole a imagem copiada).");
   }
 
@@ -536,7 +541,7 @@ export function BubbleVideo({
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+    <div data-tour="bubble-video" className="mt-3 flex flex-wrap items-center gap-2 text-sm">
       {state === "idle" && (
         <button onClick={record} className="rounded-full border border-line px-3 py-1.5">
           🎬 Gerar vídeo da bolha

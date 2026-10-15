@@ -383,7 +383,7 @@ export function GlobalMap({
         <span className="text-sm text-subtle">{total ? `${total.toLocaleString("pt-BR")} contas` : ""}</span>
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-        <form onSubmit={find} className="relative flex min-w-0 flex-1 gap-2">
+        <form onSubmit={find} data-tour="map-search" className="relative flex min-w-0 flex-1 gap-2">
           <input
             value={query}
             onChange={(e) => {
@@ -425,7 +425,7 @@ export function GlobalMap({
             </ul>
           )}
         </form>
-        <div className="flex gap-1">
+        <div data-tour="map-zoom" className="flex gap-1">
           <button aria-label="Diminuir zoom" onClick={() => zoomAt(1 / 1.6, canvas.current!.clientWidth / 2, canvas.current!.clientHeight / 2)} className="h-8 w-8 rounded-full bg-muted">
             −
           </button>
@@ -456,6 +456,7 @@ export function GlobalMap({
       <div className={`relative ${full || page ? "min-h-0 flex-1" : ""}`}>
         <canvas
           ref={canvas}
+          data-tour="map"
           className={`block w-full touch-none rounded-xl bg-bg ${full || page ? "h-full" : "h-[70vh] max-h-[680px] min-h-[360px]"} cursor-grab active:cursor-grabbing`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

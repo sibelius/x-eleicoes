@@ -14,6 +14,7 @@ import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import Link from "next/link";
+import { Tour } from "@/components/Tour";
 
 async function load(params: PageProps<"/r/[handle]">["params"]) {
   const handle = decodeURIComponent((await params).handle);
@@ -56,7 +57,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   ]);
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div data-tour="r-header" className="flex items-center gap-3">
         {share.user.avatar && <img src={share.user.avatar} alt="" className="h-12 w-12 rounded-full" />}
         <div>
           <div className="text-xl font-bold">
@@ -90,7 +91,10 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           </b>
         </p>
       )}
-      <div className="mt-6 rounded-2xl border border-line bg-card p-4">
+      <div className="mt-2">
+        <Tour name="bubble" />
+      </div>
+      <div data-tour="r-tally" className="mt-6 rounded-2xl border border-line bg-card p-4">
         <TallyBar tally={share.tally} />
         <p className="mt-2 text-xs text-subtle">
           👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} esta bolha
@@ -98,12 +102,14 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       </div>
       <ViewBeacon ids={[user.id]} />
       <a
+        data-tour="r-mine"
         href={`/?ref=${encodeURIComponent(share.user.id)}`}
         className="mt-6 self-start rounded-full bg-fg px-6 py-3 font-semibold text-bg"
       >
         Ver de que lado está a minha rede
       </a>
       <a
+        data-tour="r-share"
         href={shareTweetUrl(appUrl(), share.user.username, share.tally)}
         target="_blank"
         rel="noreferrer"
@@ -112,6 +118,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         Compartilhar esta bolha no X
       </a>
       <a
+        data-tour="r-compare"
         href={`/c?b=${encodeURIComponent(share.user.username)}`}
         className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold"
       >
@@ -137,10 +144,10 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       <div className="mt-4">
         <SupportStrip placement="bubble" />
       </div>
-      <div className="mt-4">
+      <div data-tour="size" className="mt-4">
         <BubbleSize size={size} />
       </div>
-      <div className="mt-4">
+      <div data-tour="timeline" className="mt-4">
         <Timeline {...timeline} />
       </div>
     </>

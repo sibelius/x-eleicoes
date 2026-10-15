@@ -11,7 +11,7 @@ import { nodeTypes, type PersonFlowNode } from "./PersonNode";
 const sizeFor = (t: number) => 18 + 46 * Math.sqrt(t);
 
 /** The members' follow graph: force layout from the server, colored by side or community, sized by a metric. */
-export function GraphExplorer({ graph }: { graph: GraphAnalysis }) {
+export function GraphExplorer({ graph, base }: { graph: GraphAnalysis; base: string }) {
   const [colorBy, setColorBy] = useState<"vote" | "community">("vote");
   const [sizeBy, setSizeBy] = useState<MetricKey>("pagerank");
   const [mutualOnly, setMutualOnly] = useState(false);
@@ -105,7 +105,7 @@ export function GraphExplorer({ graph }: { graph: GraphAnalysis }) {
   return (
     <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
       <div className="overflow-hidden rounded-2xl border border-line bg-card">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line p-2 text-sm">
+        <div data-tour="graph-controls" className="flex flex-wrap items-center gap-2 border-b border-line p-2 text-sm">
           <Segmented
             value={colorBy}
             onChange={setColorBy}
@@ -134,7 +134,7 @@ export function GraphExplorer({ graph }: { graph: GraphAnalysis }) {
             className="ml-auto w-32 rounded-lg border border-line bg-bg px-2 py-1"
           />
         </div>
-        <div className="h-[70vh] min-h-[420px]">
+        <div data-tour="graph-canvas" className="h-[70vh] min-h-[420px]">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -168,8 +168,8 @@ export function GraphExplorer({ graph }: { graph: GraphAnalysis }) {
           <span className="ml-auto">Tamanho = {metric(sizeBy).label}. Clique numa pessoa para ver as ligações.</span>
         </div>
       </div>
-      <aside className="grid content-start gap-3">
-        {sel ? <NodeDetails n={sel} all={graph.nodes} /> : <p className="rounded-2xl border border-line bg-card p-4 text-sm text-subtle">{metric(sizeBy).desc}</p>}
+      <aside data-tour="graph-side" className="grid content-start gap-3">
+        {sel ? <NodeDetails n={sel} all={graph.nodes} base={base} /> : <p className="rounded-2xl border border-line bg-card p-4 text-sm text-subtle">{metric(sizeBy).desc}</p>}
       </aside>
     </div>
   );
@@ -202,7 +202,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
 }
 
 /** One member's numbers, each with their rank among all members. */
-export function NodeDetails({ n, all }: { n: AnalyzedNode; all: AnalyzedNode[] }) {
+export function NodeDetails({ n, all, base }: { n: AnalyzedNode; all: AnalyzedNode[]; base: string }) {
   const rank = (k: MetricKey) => 1 + all.filter((x) => x[k] > n[k]).length;
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
@@ -245,7 +245,7 @@ export function NodeDetails({ n, all }: { n: AnalyzedNode; all: AnalyzedNode[] }
         <dt className="text-subtle">Seguidores no X (conhecidos)</dt>
         <dd className="text-right tabular-nums">{n.followers.toLocaleString("pt-BR")}</dd>
       </dl>
-      <a href={`/admin/centro?u=${encodeURIComponent(n.username)}`} className="mt-3 block text-sm underline">
+      <a href={`${base}/centro?u=${encodeURIComponent(n.username)}`} className="mt-3 block text-sm underline">
         Ver a rede a partir desta pessoa →
       </a>
     </div>

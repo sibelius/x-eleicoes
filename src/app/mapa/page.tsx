@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { GlobalMap } from "@/components/GlobalMap";
+import { Tour } from "@/components/Tour";
 import { getMe } from "@/lib/network";
 import { getUserId } from "@/lib/session";
 
@@ -24,6 +25,12 @@ export default function MapPage({ searchParams }: PageProps<"/mapa">) {
         <Link href="/ranking" className="text-subtle underline">
           Ranking
         </Link>
+        <Link href="/grafo" className="text-subtle underline">
+          A rede
+        </Link>
+        <span className="ml-auto">
+          <Tour name="map" />
+        </span>
       </nav>
       <Suspense fallback={<div className="shimmer mx-3 mb-3 flex-1 rounded-xl" />}>
         <Map searchParams={searchParams} />

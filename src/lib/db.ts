@@ -99,6 +99,20 @@ const SCHEMA = [
     PRIMARY KEY (ad, placement, visitor, day)
   )`,
   `CREATE INDEX IF NOT EXISTS ad_stats_day ON ad_stats (day)`,
+  // Posts to X (or the phone share sheet) of a bubble or comparison: who shared (u:<uid> or a visitor cookie), whose.
+  `CREATE TABLE IF NOT EXISTS shares (
+    at INTEGER NOT NULL,
+    sharer TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    targets TEXT NOT NULL,
+    via TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS shares_at ON shares (at)`,
+  // Last "someone shared your bubble" push per owner, at most one every 30 minutes.
+  `CREATE TABLE IF NOT EXISTS share_pushes (
+    uid TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
 ];
 
 export async function db(): Promise<Client> {

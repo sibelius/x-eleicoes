@@ -13,7 +13,7 @@ import { nodeTypes, type PersonFlowNode } from "./PersonNode";
 const RING = 170;
 
 /** Everyone placed on rings by degrees of separation from one person; spokes are the shortest-path tree. */
-export function Constellation({ graph, center }: { graph: GraphAnalysis; center: string }) {
+export function Constellation({ graph, center, base }: { graph: GraphAnalysis; center: string; base: string }) {
   const router = useRouter();
   const [allEdges, setAllEdges] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -102,12 +102,12 @@ export function Constellation({ graph, center }: { graph: GraphAnalysis; center:
   const centerOptions = [...graph.nodes].sort((a, b) => b.pagerank - a.pagerank).slice(0, 40);
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
+    <div data-tour="constellation" className="grid gap-3 lg:grid-cols-[1fr_300px]">
       <div className="overflow-hidden rounded-2xl border border-line bg-card">
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-2 text-sm">
           <select
             value={byId.get(center)!.username}
-            onChange={(e) => router.push(`/admin/centro?u=${encodeURIComponent(e.target.value)}`, { scroll: false })}
+            onChange={(e) => router.push(`${base}/centro?u=${encodeURIComponent(e.target.value)}`, { scroll: false })}
             className="rounded-lg border border-line bg-bg px-2 py-1"
           >
             {!centerOptions.some((n) => n.id === center) && <option value={byId.get(center)!.username}>@{byId.get(center)!.username}</option>}
@@ -129,7 +129,7 @@ export function Constellation({ graph, center }: { graph: GraphAnalysis; center:
             edges={edges}
             nodeTypes={nodeTypes}
             onNodeClick={(_, n) => setPicked(n.id)}
-            onNodeDoubleClick={(_, n) => router.push(`/admin/centro?u=${encodeURIComponent(byId.get(n.id)!.username)}`, { scroll: false })}
+            onNodeDoubleClick={(_, n) => router.push(`${base}/centro?u=${encodeURIComponent(byId.get(n.id)!.username)}`, { scroll: false })}
             nodesConnectable={false}
             fitView
             minZoom={0.05}
@@ -142,7 +142,7 @@ export function Constellation({ graph, center }: { graph: GraphAnalysis; center:
         </div>
       </div>
       <aside className="grid content-start gap-3">
-        <NodeDetails n={shown} all={graph.nodes} />
+        <NodeDetails n={shown} all={graph.nodes} base={base} />
         <div className="rounded-2xl border border-line bg-card p-4">
           <h3 className="text-sm font-semibold">Quantos a cada distância</h3>
           <div className="mt-2">
