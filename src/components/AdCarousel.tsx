@@ -36,10 +36,11 @@ function adUrl(href: string, placement: string) {
   return u.toString();
 }
 
-/** Swipeable ad carousel with prev/next arrows: starts on a random ad, advances every few seconds, pauses while hovered or touched. */
+/** Swipeable ad carousel with prev/next arrows: ads in a random order per page view, advancing every few seconds, paused while hovered or touched. */
 export function AdCarousel({ placement }: { placement: string }) {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
+  const order = useRef<number[]>([]); // the visiting order, shuffled per page view
   const [paused, setPaused] = useState(false);
   const [onScreen, setOnScreen] = useState(false);
   const seen = useRef(new Set<string>());
@@ -50,9 +51,22 @@ export function AdCarousel({ placement }: { placement: string }) {
     el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? "smooth" : "instant" });
   };
 
-  // Random first ad so every brand gets seen, even by people who leave fast.
+  /** Next (or previous) ad in the shuffled order. */
+  const step = (d: number) => {
+    const o = order.current.length ? order.current : ADS.map((_, i) => i);
+    const at = Math.max(0, o.indexOf(index));
+    go(o[(at + d + o.length) % o.length]);
+  };
+
+  // Random order per page view: every brand gets to go first, even for people who leave fast.
   useEffect(() => {
-    go(Math.floor(Math.random() * ADS.length), false);
+    const o = ADS.map((_, i) => i);
+    for (let i = o.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [o[i], o[j]] = [o[j], o[i]];
+    }
+    order.current = o;
+    go(o[0], false);
   }, []);
 
   // Is the carousel at least half visible?
@@ -84,7 +98,7 @@ export function AdCarousel({ placement }: { placement: string }) {
   useEffect(() => {
     if (paused) return;
     const t = setInterval(() => {
-      if (document.visibilityState === "visible") go((index + 1) % ADS.length);
+      if (document.visibilityState === "visible") step(1);
     }, EVERY_MS);
     return () => clearInterval(t);
   }, [index, paused]);
@@ -128,7 +142,7 @@ export function AdCarousel({ placement }: { placement: string }) {
           <button
             key={b.step}
             type="button"
-            onClick={() => go((index + b.step + ADS.length) % ADS.length)}
+            onClick={() => step(b.step)}
             aria-label={b.label}
             className={`absolute top-1/2 ${b.side} grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-opacity hover:bg-black/65 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
           >

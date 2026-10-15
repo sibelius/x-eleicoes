@@ -54,6 +54,12 @@ export const ADS = [
     image: "/ads/realoficial.jpg",
     alt: "Real Oficial: faz um xablau no seu vídeo. Troque personagem, cenário ou estilo, sem regravar.",
   },
+  {
+    name: "Revi",
+    href: "https://www.userevi.com/",
+    image: "/ads/revi.png",
+    alt: "Revi: CRM e marketing conversacional com IA. WhatsApp, e-mail e SMS a partir dos dados da loja, com receita atribuída.",
+  },
 ];
 
 export const AD_NAMES: ReadonlySet<string> = new Set(ADS.map((a) => a.name));
