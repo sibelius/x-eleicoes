@@ -48,6 +48,12 @@ export const ADS = [
     image: "/ads/avenia.png",
     alt: "Avenia: borderless liquidity.",
   },
+  {
+    name: "Real Oficial",
+    href: "https://realoficial.com.br/pt",
+    image: "/ads/realoficial.jpg",
+    alt: "Real Oficial: faz um xablau no seu vídeo. Troque personagem, cenário ou estilo, sem regravar.",
+  },
 ];
 
 export const AD_NAMES: ReadonlySet<string> = new Set(ADS.map((a) => a.name));
