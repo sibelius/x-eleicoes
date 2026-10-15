@@ -8,13 +8,13 @@ export const PIX = {
   key: "c78052c6-43e5-4732-a9ef-90fd615ed638",
   name: "Sibelius Seraphini",
   city: "Sao Paulo",
-  txid: "ELEICOES2026",
+  txid: "MINHABOLHA",
 };
 const PRESETS = [5, 10, 25, 50, 100];
 
 /** We can't see a static Pix arrive, so after copying/scanning we offer "I just donated" to post on X. */
 function donatedTweetUrl(amount: number | null) {
-  const text = `Acabei de doar${amount ? ` R$ ${amount.toFixed(2).replace(".", ",").replace(",00", "")}` : ""} para o projeto Minha Rede Vota 💚 Apoie também e veja como a sua rede do X vota: Lula ou Bolsonaro?`;
+  const text = `Acabei de doar${amount ? ` R$ ${amount.toFixed(2).replace(".", ",").replace(",00", "")}` : ""} para o projeto Minha Bolha 💚 Apoie também e veja de que lado está a sua rede do X: Vermelho ou Verde?`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${typeof location === "undefined" ? "https://x-eleicoes.vercel.app" : location.origin}/apoie`)}`;
 }
 
@@ -64,7 +64,7 @@ export function DonateMini() {
             outro valor
           </a>
         </div>
-        <button onClick={copy} className="mt-2 rounded-full bg-[var(--bolso)] px-4 py-1.5 text-sm font-semibold text-white">
+        <button onClick={copy} className="mt-2 rounded-full bg-[var(--green)] px-4 py-1.5 text-sm font-semibold text-white">
           {copied ? "Copiado ✓ cole no app do banco" : `Copiar Pix de R$ ${amount}`}
         </button>
         {/* Desktop donors scan the QR without copying, so this is always there. */}

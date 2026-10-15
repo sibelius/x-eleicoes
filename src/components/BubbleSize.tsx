@@ -9,8 +9,8 @@ export function BubbleSize({ size, nudgeUrl }: { size: Size; nudgeUrl?: string }
   const stats = [
     ["👥", n(size.accounts), "contas na bolha"],
     ["📲", n(size.members), "entraram no app"],
-    ["🗳️", n(size.voted), "votaram"],
-    ["🤐", n(silent), "entraram e não votaram"],
+    ["🔴🟢", n(size.voted), "escolheram um lado"],
+    ["🤐", n(silent), "entraram e não escolheram"],
   ];
   return (
     <section className="rounded-2xl border border-line bg-card p-4">
@@ -27,7 +27,7 @@ export function BubbleSize({ size, nudgeUrl }: { size: Size; nudgeUrl?: string }
       </dl>
       {size.silent.length > 0 && (
         <>
-          <h3 className="mt-4 text-sm font-semibold">Entraram mas não votaram</h3>
+          <h3 className="mt-4 text-sm font-semibold">Entraram mas não escolheram</h3>
           <ul className="mt-2 flex flex-wrap gap-2 text-sm">
             {size.silent.map((m) => (
               <li key={m.id}>
@@ -41,7 +41,7 @@ export function BubbleSize({ size, nudgeUrl }: { size: Size; nudgeUrl?: string }
           </ul>
           {nudgeUrl && (
             <a href={nudgeUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block rounded-full bg-fg px-4 py-2 text-sm text-bg">
-              Cobrar o voto no X
+              Cobrar no X
             </a>
           )}
         </>

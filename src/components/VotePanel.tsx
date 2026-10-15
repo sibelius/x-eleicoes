@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { Me, Vote } from "@/lib/network";
+import { SIDE } from "@/lib/links";
 
 export function VotePanel({ me }: { me: Me }) {
   const router = useRouter();
@@ -27,8 +28,8 @@ export function VotePanel({ me }: { me: Me }) {
 
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
-      <h2 className="text-lg font-semibold">Seu voto</h2>
-      <p className="mt-1 text-sm text-subtle">Todo voto é público e aparece com o seu @.</p>
+      <h2 className="text-lg font-semibold">Seu lado</h2>
+      <p className="mt-1 text-sm text-subtle">Sua escolha é pública e aparece com o seu @.</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         {(["lula", "bolsonaro"] as const).map((v) => (
           <button
@@ -39,11 +40,11 @@ export function VotePanel({ me }: { me: Me }) {
               vote === v ? "text-white" : "bg-card"
             }`}
             style={{
-              borderColor: v === "lula" ? "var(--lula)" : "var(--bolso)",
-              background: vote === v ? (v === "lula" ? "var(--lula)" : "var(--bolso)") : undefined,
+              borderColor: v === "lula" ? "var(--red)" : "var(--green)",
+              background: vote === v ? (v === "lula" ? "var(--red)" : "var(--green)") : undefined,
             }}
           >
-            {v === "lula" ? "Lula" : "Bolsonaro"}
+            {SIDE[v]}
           </button>
         ))}
       </div>
@@ -51,13 +52,13 @@ export function VotePanel({ me }: { me: Me }) {
         <label className="mt-3 flex items-start gap-2 text-sm text-subtle">
           <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>
-            Entendo que opinião política é dado pessoal sensível (LGPD) e autorizo que meu voto fique{" "}
+            Entendo que minha escolha pode ser dado pessoal sensível (LGPD) e autorizo que ela fique{" "}
             <b>público</b>: qualquer pessoa pode vê-lo, junto com meu @ do X, inclusive no meu link compartilhado.
-            Posso trocar o voto ou excluir meus dados a qualquer momento.
+            Posso trocar de lado ou excluir meus dados a qualquer momento.
           </span>
         </label>
       )}
-      {error && <p className="mt-2 text-sm text-[var(--lula)]">{error}</p>}
+      {error && <p className="mt-2 text-sm text-[var(--red)]">{error}</p>}
     </div>
   );
 }

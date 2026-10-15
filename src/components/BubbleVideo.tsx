@@ -126,10 +126,10 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
       ctx.font = "800 64px system-ui, sans-serif";
       ctx.fillStyle = COLORS.lula;
       ctx.textAlign = "left";
-      ctx.fillText(`Lula ${l}%`, 70, S - 150);
+      ctx.fillText(`Vermelho ${l}%`, 70, S - 150);
       ctx.fillStyle = COLORS.bolso;
       ctx.textAlign = "right";
-      ctx.fillText(`Bolsonaro ${b}%`, S - 70, S - 150);
+      ctx.fillText(`Verde ${b}%`, S - 70, S - 150);
       ctx.fillStyle = COLORS.muted;
       ctx.fillRect(70, S - 120, S - 140, 22);
       ctx.fillStyle = COLORS.lula;
@@ -167,7 +167,7 @@ export function BubbleVideo({ me, nodes, tally, title }: { me: Me | null; nodes:
     if (!file) return;
     const f = new File([file.blob], file.name, { type: file.blob.type });
     if (navigator.canShare?.({ files: [f] })) {
-      await navigator.share({ files: [f], text: "Minha bolha no X 🗳️ E a sua?" }).catch(() => {});
+      await navigator.share({ files: [f], text: "Minha bolha no X 🔴🟢 E a sua?" }).catch(() => {});
     }
   }
 

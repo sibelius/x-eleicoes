@@ -3,7 +3,7 @@ import { SupportStrip } from "@/components/SupportStrip";
 import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
 import { InviteBadge } from "@/components/InviteBadge";
-import { sharePath, shareTweetUrl } from "@/lib/links";
+import { SIDE, sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
 import { getBubbleSize, getFamous, getGlobalNetwork, listMembers } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
@@ -13,18 +13,18 @@ import { SITE } from "@/lib/views-shared";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Todas as bolhas · Minha Rede Vota",
-  description: "Veja a bolha e o voto de cada pessoa que já entrou no Minha Rede Vota.",
+  title: "Todas as bolhas · Minha Bolha",
+  description: "Veja a bolha e o lado de cada pessoa que já entrou na Minha Bolha.",
 };
 
 export default function MembersPage({ searchParams }: PageProps<"/r">) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10">
       <Link href="/" className="text-sm text-subtle underline">
-        Minha Rede Vota
+        Minha Bolha
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Todas as bolhas</h1>
-      <p className="mt-1 text-subtle">Quem já entrou, como vota, e a bolha de cada um.</p>
+      <p className="mt-1 text-subtle">Quem já entrou, de que lado está, e a bolha de cada um.</p>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <Link href="/ranking" className="rounded-full bg-fg px-4 py-2 text-bg">
           🏆 Ranking das bolhas
@@ -96,7 +96,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
                             {l !== null && (
                               <>
                                 {" · "}
-                                <b style={{ color: "var(--lula)" }}>{l}%</b> × <b style={{ color: "var(--bolso)" }}>{100 - l}%</b>
+                                <b style={{ color: "var(--red)" }}>{l}%</b> × <b style={{ color: "var(--green)" }}>{100 - l}%</b>
                               </>
                             )}
                           </span>
@@ -147,11 +147,11 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
                 className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
                 style={
                   m.vote
-                    ? { background: m.vote === "lula" ? "var(--lula)" : "var(--bolso)", color: "#fff" }
+                    ? { background: m.vote === "lula" ? "var(--red)" : "var(--green)", color: "#fff" }
                     : { background: "var(--muted)", color: "var(--subtle)" }
                 }
               >
-                {m.vote === "lula" ? "Lula" : m.vote === "bolsonaro" ? "Bolsonaro" : "Não votou"}
+                {m.vote ? SIDE[m.vote] : "Sem lado"}
               </span>
             </a>
           </li>

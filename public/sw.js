@@ -2,7 +2,7 @@
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(
-    self.registration.showNotification(data.title || "Minha Rede Vota", {
+    self.registration.showNotification(data.title || "Minha Bolha", {
       body: data.body,
       icon: "/apple-icon",
       data: { url: data.url || "/app" },

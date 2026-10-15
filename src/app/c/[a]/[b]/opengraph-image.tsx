@@ -34,8 +34,8 @@ export default async function Image({ params }: { params: Promise<{ a: string; b
             >
               <div style={{ fontSize: 40, fontWeight: 800 }}>{`@${s.user.username}`}</div>
               <div style={{ display: "flex", gap: 24, marginTop: 8, fontSize: 36, fontWeight: 800 }}>
-                <span style={{ color: OG.lula }}>{`Lula ${l}%`}</span>
-                <span style={{ color: OG.bolso }}>{`Bolsonaro ${bo}%`}</span>
+                <span style={{ color: OG.lula }}>{`Vermelho ${l}%`}</span>
+                <span style={{ color: OG.bolso }}>{`Verde ${bo}%`}</span>
               </div>
               <div style={{ display: "flex", width: 480, height: 18, marginTop: 14, borderRadius: 9, overflow: "hidden", background: OG.muted }}>
                 <div style={{ width: `${l}%`, background: OG.lula }} />

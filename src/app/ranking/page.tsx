@@ -7,8 +7,8 @@ import { pct, sharePath } from "@/lib/links";
 import { getRankings, type Me, type Ranked } from "@/lib/network";
 
 export const metadata: Metadata = {
-  title: "Ranking das bolhas · Minha Rede Vota",
-  description: "As bolhas mais fechadas no Lula e no Bolsonaro, as mais mistas, e quem mais trouxe gente.",
+  title: "Ranking das bolhas · Minha Bolha",
+  description: "As bolhas mais fechadas no Vermelho e no Verde, as mais mistas, e quem mais trouxe gente.",
 };
 
 export default function RankingPage() {
@@ -33,12 +33,12 @@ async function Boards() {
   const r = await getRankings();
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
-      <Board title="🔒 Mais fechadas no Lula" rows={r.closedLula} stat={(m) => `${pct(m.tally.lula, m.tally.total)}% Lula`} color="var(--lula)" />
+      <Board title="🔒 Mais fechadas no Vermelho" rows={r.closedLula} stat={(m) => `${pct(m.tally.lula, m.tally.total)}% Vermelho`} color="var(--red)" />
       <Board
-        title="🔒 Mais fechadas no Bolsonaro"
+        title="🔒 Mais fechadas no Verde"
         rows={r.closedBolsonaro}
-        stat={(m) => `${100 - pct(m.tally.lula, m.tally.total)}% Bolsonaro`}
-        color="var(--bolso)"
+        stat={(m) => `${100 - pct(m.tally.lula, m.tally.total)}% Verde`}
+        color="var(--green)"
       />
       <Board title="⚖️ Mais mistas" rows={r.mixed} stat={(m) => `${pct(m.tally.lula, m.tally.total)}% × ${100 - pct(m.tally.lula, m.tally.total)}%`} />
       <Board title="📣 Quem mais trouxe gente" rows={r.inviters} stat={(m) => `${m.invites} ${m.invites === 1 ? "pessoa" : "pessoas"}`} />
@@ -62,7 +62,7 @@ function Board<T extends Me>({ title, rows, stat, color }: { title: string; rows
                 <span className="min-w-0 flex-1 truncate">
                   <b>@{m.username}</b> <InviteBadge invites={m.invites ?? 0} />
                   {"tally" in m && (
-                    <span className="block text-xs text-subtle">{(m as unknown as Ranked).tally.total} votos na rede</span>
+                    <span className="block text-xs text-subtle">{(m as unknown as Ranked).tally.total} escolhas na rede</span>
                   )}
                 </span>
                 <span className="shrink-0 text-sm font-bold" style={{ color }}>

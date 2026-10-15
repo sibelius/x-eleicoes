@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
 import { BubbleVideo } from "./BubbleVideo";
-import { comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
+import { SIDE, comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
@@ -18,8 +18,8 @@ type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 
 function color(n: NetworkNode | null, me: Me | null) {
   const vote = n ? n.vote : me?.vote;
-  if (vote === "lula") return "var(--lula)";
-  if (vote === "bolsonaro") return "var(--bolso)";
+  if (vote === "lula") return "var(--red)";
+  if (vote === "bolsonaro") return "var(--green)";
   return "var(--none)";
 }
 
@@ -262,9 +262,9 @@ export function Bubble({
         </div>
       </div>
       <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
-        <Legend c="var(--lula)" label="Lula" />
-        <Legend c="var(--bolso)" label="Bolsonaro" />
-        <Legend c="var(--none)" label="Ainda não votou" />
+        <Legend c="var(--red)" label={SIDE.lula} />
+        <Legend c="var(--green)" label={SIDE.bolsonaro} />
+        <Legend c="var(--none)" label="Ainda sem lado" />
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
       <div className="relative">
@@ -296,16 +296,16 @@ export function Bubble({
               ) : null,
             )}
           </defs>
-          <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--lula)] text-base font-bold">
-            Lula
+          <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--red)] text-base font-bold">
+            {SIDE.lula}
           </text>
           <text
             x={box.x + box.w - 12}
             y={box.y + 20}
             textAnchor="end"
-            className="fill-[var(--bolso)] text-base font-bold"
+            className="fill-[var(--green)] text-base font-bold"
           >
-            Bolsonaro
+            {SIDE.bolsonaro}
           </text>
           <g
             className={`bubble-zoom ${dragging ? "is-dragging" : ""}`}
@@ -434,8 +434,8 @@ function NodeCard({
   const status = !n.member
     ? "Ainda não entrou no app"
     : n.vote
-      ? `Vota ${n.vote === "lula" ? "Lula" : "Bolsonaro"}`
-      : "Entrou mas ainda não votou";
+      ? `Time ${SIDE[n.vote]}`
+      : "Entrou mas ainda não escolheu";
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-3">
       <div className="min-w-0">
@@ -454,7 +454,7 @@ function NodeCard({
             target="_blank"
             rel="noreferrer"
           >
-            Pedir pra votar
+            Chamar pra escolher
           </a>
         )}
         {n.username && (

@@ -6,12 +6,12 @@ const AD = {
   href: "https://hodle.com.br/",
   image: "/ads/hodle.png",
   alt: "Hodle: cripto que funciona como Pix. Receba, guarde e pague em real ou em stablecoin.",
-  campaign: "eleicoes2026",
+  campaign: "minhabolha2026",
 };
 
 function adUrl(placement: string) {
   const u = new URL(AD.href);
-  u.searchParams.set("utm_source", "minharedevota");
+  u.searchParams.set("utm_source", "minhabolha");
   u.searchParams.set("utm_medium", "display");
   u.searchParams.set("utm_campaign", AD.campaign);
   u.searchParams.set("utm_content", placement);

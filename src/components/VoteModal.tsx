@@ -25,7 +25,7 @@ export function VoteModal({ me }: { me: Me }) {
     >
       <div className="w-full max-w-md">
         <h2 id="vote-modal-title" className="mb-3 text-center text-2xl font-bold text-white">
-          Em quem você vota, @{me.username}?
+          De que lado você está, @{me.username}?
         </h2>
         <VotePanel me={me} />
         <button onClick={() => setOpen(false)} className="mx-auto mt-3 block text-sm text-white/80 underline">

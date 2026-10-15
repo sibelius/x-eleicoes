@@ -1,4 +1,4 @@
-import { pct, sharePath } from "@/lib/links";
+import { SIDE, pct, sharePath } from "@/lib/links";
 import type { TimelineEvent, TimelinePoint } from "@/lib/network";
 
 const W = 640;
@@ -33,11 +33,11 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
         {last.lula + last.bolsonaro > 0 && first.lula + first.bolsonaro > 0 && share(first) !== share(last) && (
           <>
             {" "}
-            · Lula foi de {share(first)}% para <b className="text-fg">{share(last)}%</b>
+            · Vermelho foi de {share(first)}% para <b className="text-fg">{share(last)}%</b>
           </>
         )}
       </p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-auto w-full" role="img" aria-label="Votos ao longo do tempo">
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-auto w-full" role="img" aria-label="Escolhas ao longo do tempo">
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
             <line x1={PAD.l} x2={W - PAD.r} y1={y(max * f)} y2={y(max * f)} stroke="var(--line)" />
@@ -46,19 +46,19 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
             </text>
           </g>
         ))}
-        <path d={line("lula")} fill="none" stroke="var(--lula)" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d={line("bolsonaro")} fill="none" stroke="var(--bolso)" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={line("lula")} fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={line("bolsonaro")} fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinejoin="round" />
         <text x={PAD.l} y={H - 6} fontSize="11" fill="var(--subtle)">
           {fmt(first.day)}
         </text>
         <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize="11" fill="var(--subtle)">
           {fmt(last.day)}
         </text>
-        <text x={W - PAD.r} y={y(last.lula) - 6} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--lula)">
-          Lula {last.lula}
+        <text x={W - PAD.r} y={y(last.lula) - 6} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--red)">
+          Vermelho {last.lula}
         </text>
-        <text x={W - PAD.r} y={y(last.bolsonaro) + (last.bolsonaro === last.lula ? 16 : -6)} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--bolso)">
-          Bolsonaro {last.bolsonaro}
+        <text x={W - PAD.r} y={y(last.bolsonaro) + (last.bolsonaro === last.lula ? 16 : -6)} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--green)">
+          Verde {last.bolsonaro}
         </text>
       </svg>
       {events.length > 0 && (
@@ -74,9 +74,9 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
                   "entrou"
                 ) : (
                   <>
-                    votou{" "}
-                    <b style={{ color: e.vote === "lula" ? "var(--lula)" : "var(--bolso)" }}>
-                      {e.vote === "lula" ? "Lula" : "Bolsonaro"}
+                    escolheu{" "}
+                    <b style={{ color: e.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+                      {e.vote ? SIDE[e.vote] : ""}
                     </b>
                   </>
                 )}

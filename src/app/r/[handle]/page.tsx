@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { sharePath, shareTweetUrl } from "@/lib/links";
+import { SIDE, sharePath, shareTweetUrl } from "@/lib/links";
 import { getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
@@ -24,8 +24,8 @@ export async function generateMetadata({ params }: PageProps<"/r/[handle]">): Pr
   const share = (await load(params))?.share;
   if (!share) return {};
   return {
-    title: `Como a rede de @${share.user.username} vota`,
-    description: "Entre com o X e veja como a sua rede vota: Lula ou Bolsonaro.",
+    title: `De que lado está a rede de @${share.user.username}`,
+    description: "Entre com o X e veja de que lado está a sua rede: Vermelho ou Verde.",
   };
 }
 
@@ -64,7 +64,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
           <div className="text-subtle">@{share.user.username}</div>
         </div>
       </div>
-      <h1 className="mt-6 text-3xl font-bold tracking-tight">Como a rede de @{share.user.username} vota</h1>
+      <h1 className="mt-6 text-3xl font-bold tracking-tight">De que lado está a rede de @{share.user.username}</h1>
       {!share.member && (
         <p className="mt-2 text-sm text-subtle">
           @{share.user.username} ainda não entrou no app: esta bolha é montada com quem já entrou e segue ou é seguido
@@ -74,7 +74,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
             target="_blank"
             rel="noreferrer"
             href={`https://x.com/intent/post?text=${encodeURIComponent(
-              `@${share.user.username} já vimos como a sua rede vota. Falta só o seu voto: Lula ou Bolsonaro? 🗳️`,
+              `@${share.user.username} já vimos de que lado está a sua rede. Falta só você: Vermelho ou Verde? 🔴🟢`,
             )}&url=${encodeURIComponent(`${appUrl()}${sharePath(share.user.username)}`)}`}
           >
             Chamar @{share.user.username} no X
@@ -83,9 +83,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       )}
       {share.vote && (
         <p className="mt-2 text-subtle">
-          @{share.user.username} vota{" "}
-          <b style={{ color: share.vote === "lula" ? "var(--lula)" : "var(--bolso)" }}>
-            {share.vote === "lula" ? "Lula" : "Bolsonaro"}
+          @{share.user.username} é{" "}
+          <b style={{ color: share.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+            {SIDE[share.vote]}
           </b>
         </p>
       )}
@@ -100,7 +100,7 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         href={`/?ref=${encodeURIComponent(share.user.id)}`}
         className="mt-6 self-start rounded-full bg-fg px-6 py-3 font-semibold text-bg"
       >
-        Ver como a minha rede vota
+        Ver de que lado está a minha rede
       </a>
       <a
         href={shareTweetUrl(appUrl(), share.user.username, share.tally)}

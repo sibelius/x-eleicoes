@@ -7,8 +7,8 @@
   --muted: #f1f1ef;
   --line: #e4e4e0;
   --subtle: #6b6b70;
-  --lula: #d4202c;
-  --bolso: #13894a;
+  --red: #d4202c;
+  --green: #13894a;
   --none: #a8a8ad;
 }
 
@@ -20,8 +20,8 @@
     --muted: #222226;
     --line: #2c2c31;
     --subtle: #9c9ca3;
-    --lula: #f0444f;
-    --bolso: #2bb56b;
+    --red: #f0444f;
+    --green: #2bb56b;
     --none: #5d5d64;
   }
 }

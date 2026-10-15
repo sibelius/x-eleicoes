@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
-import { comparePath, compareTweetUrl, pct, sharePath } from "@/lib/links";
+import { SIDE, comparePath, compareTweetUrl, pct, sharePath } from "@/lib/links";
 import { getComparison } from "@/lib/network";
 import { appUrl } from "@/lib/session";
 import { ViewBeacon } from "@/components/ViewBeacon";
@@ -21,8 +21,8 @@ export async function generateMetadata({ params }: PageProps<"/c/[a]/[b]">): Pro
   const c = await load(params);
   if (!c) return {};
   return {
-    title: `@${c.a.user.username} × @${c.b.user.username}: como as bolhas votam`,
-    description: "Compare a sua bolha do X com a de qualquer pessoa: Lula ou Bolsonaro.",
+    title: `@${c.a.user.username} × @${c.b.user.username}: de que lado estão as bolhas`,
+    description: "Compare a sua bolha do X com a de qualquer pessoa: Vermelho ou Verde.",
   };
 }
 
@@ -52,8 +52,8 @@ async function Compare({ params }: { params: Params }) {
     !c.a.tally.total || !c.b.tally.total
       ? null
       : la === lb
-        ? "As duas redes votam igual."
-        : `A rede de @${la > lb ? A : B} é ${Math.abs(la - lb)} pontos mais Lula.`;
+        ? "As duas redes estão empatadas."
+        : `A rede de @${la > lb ? A : B} é ${Math.abs(la - lb)} pontos mais Vermelho.`;
 
   return (
     <>
@@ -89,9 +89,9 @@ async function Compare({ params }: { params: Params }) {
                     @{s.user.username}
                     {s.vote && (
                       <>
-                        {" · vota "}
-                        <b style={{ color: s.vote === "lula" ? "var(--lula)" : "var(--bolso)" }}>
-                          {s.vote === "lula" ? "Lula" : "Bolsonaro"}
+                        {" · "}
+                        <b style={{ color: s.vote === "lula" ? "var(--red)" : "var(--green)" }}>
+                          {SIDE[s.vote]}
                         </b>
                       </>
                     )}
@@ -121,7 +121,7 @@ async function Compare({ params }: { params: Params }) {
                 <a
                   href={n.username ? sharePath(n.username) : undefined}
                   className="flex items-center gap-2 rounded-full border px-2 py-1"
-                  style={{ borderColor: n.vote === "lula" ? "var(--lula)" : n.vote === "bolsonaro" ? "var(--bolso)" : "var(--line)" }}
+                  style={{ borderColor: n.vote === "lula" ? "var(--red)" : n.vote === "bolsonaro" ? "var(--green)" : "var(--line)" }}
                 >
                   {n.avatar && <img src={n.avatar} alt="" className="h-6 w-6 rounded-full" />}@{n.username}
                 </a>

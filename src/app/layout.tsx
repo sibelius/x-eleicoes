@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 const REPO_URL = "https://github.com/sibelius/x-eleicoes";
 
 export const metadata: Metadata = {
-  title: "Minha Rede Vota",
-  description: "Entre com o X, vote Lula ou Bolsonaro e veja como a sua rede vota.",
+  title: "Minha Bolha",
+  description: "Entre com o X, escolha Vermelho ou Verde e veja de que lado está a sua rede.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

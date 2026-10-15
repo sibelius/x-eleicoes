@@ -1,11 +1,13 @@
+export const SIDE = { lula: "Vermelho", bolsonaro: "Verde" } as const;
+
 export function inviteLink(base: string, uid: string) {
   return `${base}/?ref=${encodeURIComponent(uid)}`;
 }
 
 export function inviteTweetUrl(base: string, uid: string, username?: string | null) {
   const text = username
-    ? `@${username} já votou? Entra com sua conta do X e vê como a nossa rede vota: Lula ou Bolsonaro 🗳️`
-    : `Como a sua rede do X vota? Lula ou Bolsonaro? Entra e descobre 🗳️`;
+    ? `@${username} já escolheu seu lado? Entra com sua conta do X e vê de que lado está a nossa rede: Vermelho ou Verde 🔴🟢`
+    : `De que lado está a sua rede do X? Vermelho ou Verde? Entra e descobre 🔴🟢`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(inviteLink(base, uid))}`;
 }
 
@@ -19,10 +21,10 @@ export type Verdict = { label: string; side: "lula" | "bolsonaro" | null };
 export function bubbleVerdict(tally: { lula: number; total: number }): Verdict {
   if (tally.total < 3) return { label: "Bolha em formação 🌱", side: null };
   const l = pct(tally.lula, tally.total);
-  if (l >= 85) return { label: "Bolha fechada no Lula 🔒", side: "lula" };
-  if (l <= 15) return { label: "Bolha fechada no Bolsonaro 🔒", side: "bolsonaro" };
-  if (l >= 65) return { label: "Bolha inclinada pro Lula ↖️", side: "lula" };
-  if (l <= 35) return { label: "Bolha inclinada pro Bolsonaro ↗️", side: "bolsonaro" };
+  if (l >= 85) return { label: "Bolha fechada no Vermelho 🔒", side: "lula" };
+  if (l <= 15) return { label: "Bolha fechada no Verde 🔒", side: "bolsonaro" };
+  if (l >= 65) return { label: "Bolha inclinada pro Vermelho ↖️", side: "lula" };
+  if (l <= 35) return { label: "Bolha inclinada pro Verde ↗️", side: "bolsonaro" };
   return { label: "Bolha mista ⚖️", side: null };
 }
 
@@ -34,7 +36,7 @@ export function shareTweetUrl(
   own = false,
 ) {
   const l = pct(tally.lula, tally.total);
-  const split = `${l}% Lula × ${tally.total ? 100 - l : 0}% Bolsonaro`;
+  const split = `${l}% Vermelho × ${tally.total ? 100 - l : 0}% Verde`;
   const v = tally.total >= 3 ? `${bubbleVerdict(tally).label} (${split})` : split;
   const text = !username
     ? `A bolha de todo mundo no X: ${v}. E a sua?`
@@ -58,13 +60,13 @@ export function comparePath(a: string, b: string) {
 }
 
 export function compareTweetUrl(base: string, a: string, b: string) {
-  const text = `Comparei a bolha de @${a} com a de @${b} no X. Qual rede vota mais Lula? E mais Bolsonaro? 🗳️`;
+  const text = `Comparei a bolha de @${a} com a de @${b} no X. Qual é mais Vermelho? E mais Verde? 🔴🟢`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(a, b)}`)}`;
 }
 
 /** One post tagging the members who joined but haven't voted (as many as fit in a post). */
 export function nudgeTweetUrl(base: string, uid: string, usernames: string[]) {
-  const tail = " vocês já entraram no Minha Rede Vota mas ainda não votaram: Lula ou Bolsonaro? 🗳️";
+  const tail = " vocês já entraram na Minha Bolha mas ainda não escolheram um lado: Vermelho ou Verde? 🔴🟢";
   // 280 chars, the link counts as 23 + a space.
   let tags = "";
   for (const u of usernames) {
@@ -88,13 +90,13 @@ export const BADGE_STEPS = [3, 10, 25];
 
 /** Challenge someone in your network who votes the other way to compare bubbles. */
 export function challengeTweetUrl(base: string, me: { username: string; vote: "lula" | "bolsonaro" }, them: string) {
-  const mine = me.vote === "lula" ? "Lula" : "Bolsonaro";
-  const theirs = me.vote === "lula" ? "Bolsonaro" : "Lula";
-  const text = `@${them} você vota ${theirs}, eu voto ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
+  const mine = SIDE[me.vote];
+  const theirs = me.vote === "lula" ? SIDE.bolsonaro : SIDE.lula;
+  const text = `@${them} você é ${theirs}, eu sou ${mine}. Bora ver qual das nossas bolhas é mais fechada? 👀`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${base}${comparePath(me.username, them)}`)}`;
 }
 
 /** Buying an ad = a DM to @sseraphini on X. */
 export const AD_DM_URL = `https://x.com/messages/compose?recipient_id=2313873457&text=${encodeURIComponent(
-  "Olá! Quero anunciar no Minha Rede Vota. Meu produto/marca: ",
+  "Olá! Quero anunciar na Minha Bolha. Meu produto/marca: ",
 )}`;

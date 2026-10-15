@@ -58,7 +58,7 @@ async function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">
-          <Link href="/apoie" className="rounded-full bg-[var(--bolso)] px-3 py-1 font-semibold text-white">
+          <Link href="/apoie" className="rounded-full bg-[var(--green)] px-3 py-1 font-semibold text-white">
             Doar
           </Link>
           <Link href="/ranking" className="text-subtle underline">
@@ -81,7 +81,7 @@ async function Dashboard() {
       <div className="mt-6 flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px]">
         <div className="contents lg:grid lg:min-w-0 lg:content-start lg:gap-4">
           <section className="order-2 rounded-2xl border border-line bg-card p-4 lg:order-none">
-            <h2 className="mb-3 text-lg font-semibold">Como sua rede vota</h2>
+            <h2 className="mb-3 text-lg font-semibold">De que lado está sua rede</h2>
             <TallyBar tally={tally} />
             <p className="mt-2 text-sm text-subtle">
               👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} sua bolha
@@ -156,14 +156,14 @@ async function Dashboard() {
             {silent.length > 0 && (
               <div className="mt-4 rounded-xl bg-muted p-3 text-sm">
                 <b>{silent.length}</b> {silent.length === 1 ? "pessoa entrou" : "pessoas entraram"} mas ainda não{" "}
-                {silent.length === 1 ? "votou" : "votaram"}.
+                {silent.length === 1 ? "escolheu um lado" : "escolheram um lado"}.
                 <a
                   className="mt-2 block w-fit rounded-full bg-fg px-4 py-2 text-bg"
                   href={nudgeTweetUrl(base, me.id, silent)}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Cobrar o voto no X
+                  Cobrar no X
                 </a>
               </div>
             )}
@@ -180,7 +180,7 @@ async function Dashboard() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Pedir voto
+                      Chamar
                     </a>
                   </li>
                 ))}

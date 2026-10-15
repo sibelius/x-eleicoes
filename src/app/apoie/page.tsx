@@ -4,8 +4,8 @@ import { Donate } from "@/components/Donate";
 import { AD_DM_URL as AD_DM } from "@/lib/links";
 
 export const metadata: Metadata = {
-  title: "Apoie · Minha Rede Vota",
-  description: "Ajude a manter o Minha Rede Vota no ar: doe via Pix ou anuncie aqui.",
+  title: "Apoie · Minha Bolha",
+  description: "Ajude a manter a Minha Bolha no ar: doe via Pix ou anuncie aqui.",
 };
 
 
@@ -13,11 +13,11 @@ export default function ApoiePage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10">
       <Link href="/" className="text-sm text-subtle underline">
-        Minha Rede Vota
+        Minha Bolha
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Apoie o projeto</h1>
       <p className="mt-1 text-subtle">
-        O Minha Rede Vota é gratuito e de código aberto. Servidores e a busca de quem você segue no X custam dinheiro:
+        A Minha Bolha é gratuita e de código aberto. Servidores e a busca de quem você segue no X custam dinheiro:
         qualquer valor ajuda a manter tudo no ar.
       </p>
 

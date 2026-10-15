@@ -70,7 +70,7 @@ export async function notifyNetworkJoined(newcomer: { id: string; username: stri
   });
   return send(r.rows, {
     title: "Alguém da sua rede entrou",
-    body: `@${newcomer.username} entrou no Minha Rede Vota. Veja como sua bolha mudou.`,
+    body: `@${newcomer.username} entrou na Minha Bolha. Veja como sua bolha mudou.`,
     url,
   });
 }
@@ -129,13 +129,13 @@ export async function sendDailySummaries(origin: string) {
     if (!dl && !db_ && !dm) continue;
     const parts = [
       dm > 0 && `+${dm} ${dm === 1 ? "pessoa entrou" : "pessoas entraram"}`,
-      dl && `${dl > 0 ? "+" : ""}${dl} Lula`,
-      db_ && `${db_ > 0 ? "+" : ""}${db_} Bolsonaro`,
+      dl && `${dl > 0 ? "+" : ""}${dl} Vermelho`,
+      db_ && `${db_ > 0 ? "+" : ""}${db_} Verde`,
     ].filter(Boolean);
     const l = pct(now.lula, now.lula + now.bolsonaro);
     sent += await sendTo(uid, {
-      title: "Sua bolha hoje 🗳️",
-      body: `${parts.join(" · ")}. Agora: ${l}% Lula × ${now.lula + now.bolsonaro ? 100 - l : 0}% Bolsonaro. Compartilhe!`,
+      title: "Sua bolha hoje 🔴🟢",
+      body: `${parts.join(" · ")}. Agora: ${l}% Vermelho × ${now.lula + now.bolsonaro ? 100 - l : 0}% Verde. Compartilhe!`,
       url: `${origin}/app`,
     });
   }

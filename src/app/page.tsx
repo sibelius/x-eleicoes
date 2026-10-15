@@ -14,14 +14,14 @@ const ERRORS: Record<string, string> = {
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-16">
-      <p className="text-sm font-medium tracking-wide text-subtle uppercase">Eleições 2026</p>
+      <p className="text-sm font-medium tracking-wide text-subtle uppercase">🔴 Vermelho ou Verde 🟢</p>
       <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-        Como a sua rede do X vota?
+        De que lado está a sua rede do X?
       </h1>
       <p className="mt-4 text-lg text-subtle">
-        Entre com sua conta do X, escolha <b className="text-[var(--lula)]">Lula</b> ou{" "}
-        <b className="text-[var(--bolso)]">Bolsonaro</b> e veja a bolha de quem você segue e quem te segue. Chame
-        seus amigos pra votar e compartilhe o resultado da sua rede.
+        Entre com sua conta do X, escolha <b className="text-[var(--red)]">Vermelho</b> ou{" "}
+        <b className="text-[var(--green)]">Verde</b> e veja a bolha de quem você segue e quem te segue. Chame
+        seus amigos pra escolher um lado e compartilhe o resultado da sua rede.
       </p>
       <Suspense fallback={<div className="mt-8 h-12" />}>
         <Actions searchParams={searchParams} />
@@ -30,8 +30,8 @@ export default function Home({ searchParams }: PageProps<"/">) {
         Ver todas as bolhas
       </Link>
       <p className="mt-10 text-xs text-subtle">
-        Enquete informal entre usuários, sem valor estatístico — não é pesquisa eleitoral. Os votos são públicos e
-        aparecem com o @ de quem votou. Você pode excluir seus dados quando quiser.
+        Brincadeira entre usuários do X, sem valor estatístico. As escolhas são públicas e
+        aparecem com o @ de quem escolheu. Você pode excluir seus dados quando quiser.
       </p>
       <div className="mt-10">
         <SupportStrip placement="home" />

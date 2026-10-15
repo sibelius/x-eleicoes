@@ -7,8 +7,8 @@ import { getMe } from "@/lib/network";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Comparar bolhas · Minha Rede Vota",
-  description: "Compare a sua bolha do X com a de qualquer pessoa: Lula ou Bolsonaro.",
+  title: "Comparar bolhas · Minha Bolha",
+  description: "Compare a sua bolha do X com a de qualquer pessoa: Vermelho ou Verde.",
 };
 
 const clean = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim().replace(/^@/, "") : "");
@@ -20,7 +20,7 @@ export default function ComparePicker({ searchParams }: PageProps<"/c">) {
         Todas as bolhas
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Comparar bolhas</h1>
-      <p className="mt-1 text-subtle">Duas pessoas, duas redes: qual vota mais Lula? E mais Bolsonaro?</p>
+      <p className="mt-1 text-subtle">Duas pessoas, duas redes: qual é mais Vermelho? E mais Verde?</p>
       <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
         <Picker searchParams={searchParams} />
       </Suspense>

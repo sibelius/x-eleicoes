@@ -34,13 +34,13 @@ export function LiveBar() {
         <>
           <span className="flex items-center gap-2 font-semibold">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--bolso)] opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--bolso)]" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--green)] opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--green)]" />
             </span>
             {n(live.online)} {live.online === 1 ? "pessoa online" : "pessoas online"} agora
           </span>
           <span className="text-subtle">👀 {n(live.today)} hoje</span>
-          <span className="text-subtle">🗳️ {n(live.members)} já entraram</span>
+          <span className="text-subtle">🙋 {n(live.members)} já entraram</span>
         </>
       ) : (
         <span className="text-subtle">&nbsp;</span>
