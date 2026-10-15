@@ -23,6 +23,8 @@ export type NetworkNode = {
   follower: boolean; // they follow me
   invite: boolean; // joined through my link or invited me
   strength: number;
+  /** Combined bubble only: -1 (linked to Lula voters) … 1 (Bolsonaro voters). */
+  lean?: number;
 };
 
 export type Tally = { lula: number; bolsonaro: number; total: number };
@@ -55,6 +57,26 @@ export async function resolveUser(handle: string): Promise<{ id: string; usernam
   });
   const row = r.rows[0];
   return row ? { id: String(row.id), username: String(row.username) } : null;
+}
+
+/** Every real (X) member for the public directory; votes are public. */
+export async function listMembers(q = ""): Promise<Me[]> {
+  const client = await db();
+  const r = await client.execute({
+    sql: `SELECT u.id, u.username, u.name, u.avatar, u.vote
+          FROM users u
+          WHERE u.id GLOB '[0-9]*' AND (:q = '' OR u.username LIKE :like OR u.name LIKE :like)
+          ORDER BY u.created_at DESC
+          LIMIT 500`,
+    args: { q, like: `%${q.replace(/[%_]/g, "")}%` },
+  });
+  return r.rows.map((row) => ({
+    id: String(row.id),
+    username: String(row.username),
+    name: String(row.name),
+    avatar: (row.avatar as string | null) ?? null,
+    vote: (row.vote as Vote | null) ?? null,
+  }));
 }
 
 type Row = {
@@ -138,6 +160,74 @@ export async function getNetwork(uid: string) {
     tally: tally(rows),
     counts: { following: Number(c.following), followers: Number(c.followers) },
   };
+}
+
+/**
+ * Everyone's bubbles joined: all members, plus the non-members most connected to them
+ * (placed toward the side of the voters they're linked to).
+ */
+export async function getGlobalNetwork(nonMemberLimit = 300): Promise<NetworkNode[]> {
+  const client = await db();
+  const base = (n: Partial<NetworkNode> & Pick<NetworkNode, "id">): NetworkNode => ({
+    username: null,
+    name: null,
+    avatar: null,
+    member: false,
+    vote: null,
+    voted: false,
+    following: false,
+    follower: false,
+    invite: false,
+    strength: 0,
+    ...n,
+  });
+  const [members, others] = await client.batch(
+    [
+      "SELECT id, username, name, avatar, vote FROM users WHERE id GLOB '[0-9]*'",
+      {
+        sql: `WITH m AS (SELECT id, vote FROM users WHERE id GLOB '[0-9]*'),
+              links AS (
+                SELECT e.dst AS id, m.vote FROM edges e JOIN m ON m.id = e.src
+                UNION ALL SELECT e.src, m.vote FROM edges e JOIN m ON m.id = e.dst
+              )
+              SELECT l.id, COUNT(*) AS c, SUM(l.vote = 'lula') AS lula, SUM(l.vote = 'bolsonaro') AS bolso,
+                p.username, p.name, p.avatar
+              FROM links l LEFT JOIN profiles p ON p.id = l.id
+              WHERE l.id NOT IN (SELECT id FROM m)
+              GROUP BY l.id
+              ORDER BY (p.username IS NOT NULL) DESC, c DESC
+              LIMIT ?`,
+        args: [nonMemberLimit],
+      },
+    ],
+    "read",
+  );
+  return [
+    ...members.rows.map((r) =>
+      base({
+        id: String(r.id),
+        username: r.username as string,
+        name: r.name as string,
+        avatar: (r.avatar as string | null) ?? null,
+        member: true,
+        vote: (r.vote as Vote | null) ?? null,
+        voted: Boolean(r.vote),
+        strength: 2,
+      }),
+    ),
+    ...others.rows.map((r) => {
+      const lula = Number(r.lula);
+      const bolso = Number(r.bolso);
+      return base({
+        id: String(r.id),
+        username: (r.username as string | null) ?? null,
+        name: (r.name as string | null) ?? null,
+        avatar: (r.avatar as string | null) ?? null,
+        strength: Math.min(3, Math.log2(Number(r.c))),
+        lean: lula + bolso ? (bolso - lula) / (lula + bolso) : 0,
+      });
+    }),
+  ];
 }
 
 /** What anyone can see on a shared link: the owner's vote + their network's totals. */

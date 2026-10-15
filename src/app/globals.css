@@ -41,3 +41,35 @@ body {
   background: var(--bg);
   color: var(--fg);
 }
+
+/* Bubble: dots pop in as a ripple, glide when the layout changes, and the view zooms onto a selected dot. */
+@keyframes bubble-pop {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes bubble-pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+.bubble-pop {
+  animation: bubble-pop 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bubble-pulse {
+  animation: bubble-pulse 2.4s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bubble-node {
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease;
+}
+.bubble-zoom {
+  transform-origin: 0 0;
+  transition: transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble-pop, .bubble-pulse { animation: none; }
+  .bubble-node, .bubble-zoom { transition: none; }
+}

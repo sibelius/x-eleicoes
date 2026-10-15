@@ -7,6 +7,7 @@ import { VotePanel } from "@/components/VotePanel";
 import { inviteLink, inviteTweetUrl, pct, sharePath, shareTweetUrl } from "@/lib/links";
 import { getMe, getNetwork } from "@/lib/network";
 import { appUrl, getUserId } from "@/lib/session";
+import Link from "next/link";
 
 export default function AppPage() {
   return (
@@ -36,14 +37,20 @@ async function Dashboard() {
             <div className="text-sm text-subtle">@{me.username}</div>
           </div>
         </div>
-        <form action="/api/auth/logout" method="post">
-          <button className="text-sm text-subtle underline">Sair</button>
-        </form>
+        <div className="flex items-center gap-4 text-sm">
+          <Link href="/r" className="text-subtle underline">
+            Todas as bolhas
+          </Link>
+          <form action="/api/auth/logout" method="post">
+            <button className="text-subtle underline">Sair</button>
+          </form>
+        </div>
       </header>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_340px]">
-        <div className="grid min-w-0 content-start gap-4">
-          <section className="rounded-2xl border border-line bg-card p-4">
+      {/* Phones: one column ordered vote → result → bubble → invites → archive; desktop: two columns. */}
+      <div className="mt-6 flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_340px]">
+        <div className="contents lg:grid lg:min-w-0 lg:content-start lg:gap-4">
+          <section className="order-2 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="mb-3 text-lg font-semibold">Como sua rede vota</h2>
             <TallyBar tally={tally} />
             <div className="mt-4 flex flex-wrap gap-2 text-sm">
@@ -60,12 +67,16 @@ async function Dashboard() {
               </a>
             </div>
           </section>
-          <Bubble me={me} nodes={nodes} shareBase={base} />
+          <div className="order-3 min-w-0 lg:order-none">
+            <Bubble me={me} nodes={nodes} shareBase={base} />
+          </div>
         </div>
 
-        <aside className="order-first grid content-start gap-4 lg:order-none">
-          <VotePanel me={me} />
-          <section className="rounded-2xl border border-line bg-card p-4">
+        <aside className="contents lg:grid lg:content-start lg:gap-4">
+          <div className="order-1 lg:order-none">
+            <VotePanel me={me} />
+          </div>
+          <section className="order-4 rounded-2xl border border-line bg-card p-4 lg:order-none">
             <h2 className="text-lg font-semibold">Chame sua rede</h2>
             <p className="mt-1 text-sm text-subtle">
               Quem entrar pelo seu link entra direto na sua bolha.
@@ -83,7 +94,7 @@ async function Dashboard() {
               <ul className="mt-4 grid gap-2 text-sm">
                 {pendingMembers.map((n) => (
                   <li key={n.id} className="flex items-center justify-between gap-2">
-                    <span className="truncate">
+                    <span className="min-w-0 truncate">
                       {n.name} <span className="text-subtle">@{n.username}</span>
                     </span>
                     <a
@@ -99,7 +110,9 @@ async function Dashboard() {
               </ul>
             )}
           </section>
-          <ImportArchive counts={counts} />
+          <div className="order-5 lg:order-none">
+            <ImportArchive counts={counts} />
+          </div>
         </aside>
       </div>
     </main>

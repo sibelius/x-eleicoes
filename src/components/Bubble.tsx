@@ -1,31 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode } from "@/lib/network";
-import { inviteTweetUrl, profileUrl } from "@/lib/links";
+import { inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
 
-const W = 760;
-const H = 520;
+// Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
+const WIDE = { w: 760, h: 520 };
+const NARROW = { w: 400, h: 620 };
 
 type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 
-function color(n: NetworkNode | null, me: Me) {
-  const vote = n ? n.vote : me.vote;
+function color(n: NetworkNode | null, me: Me | null) {
+  const vote = n ? n.vote : me?.vote;
   if (vote === "lula") return "var(--lula)";
   if (vote === "bolsonaro") return "var(--bolso)";
   return "var(--none)";
 }
 
-function targetX(n: NetworkNode | null) {
-  if (!n) return W / 2;
-  if (n.vote === "lula") return W * 0.28;
-  if (n.vote === "bolsonaro") return W * 0.72;
-  return W / 2;
+function targetX(n: NetworkNode | null, w: number) {
+  if (!n) return w / 2;
+  if (n.vote === "lula") return w * 0.28;
+  if (n.vote === "bolsonaro") return w * 0.72;
+  // Non-voters lean toward the side of the voters connected to them (combined bubble).
+  return w / 2 + (n.lean ?? 0) * w * 0.2;
 }
 
 function initials(name: string | null) {
-  return (name ?? "?").split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+  return (name ?? "?")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase();
 }
 
 export function Bubble({
@@ -36,7 +45,8 @@ export function Bubble({
   centerLabel = "VOCÊ",
   readOnly = false,
 }: {
-  me: Me;
+  /** The owner in the middle; null for the combined bubble of everyone. */
+  me: Me | null;
   nodes: NetworkNode[];
   shareBase: string;
   title?: string;
@@ -44,59 +54,91 @@ export function Bubble({
   /** Public page: a visitor can look, but not ask people to vote on the owner's behalf. */
   readOnly?: boolean;
 }) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const [space, setSpace] = useState(WIDE);
   const [layout, setLayout] = useState<SimNode[] | null>(null);
   const box = useMemo(() => {
-    if (!layout) return { x: 0, y: 0, w: W, h: H };
+    if (!layout) return { x: 0, y: 0, w: space.w, h: space.h };
     const pad = 12;
     const x0 = Math.min(...layout.map((d) => d.x! - d.r)) - pad;
     const x1 = Math.max(...layout.map((d) => d.x! + d.r)) + pad;
     const y0 = Math.min(...layout.map((d) => d.y! - d.r)) - pad - 28;
     const y1 = Math.max(...layout.map((d) => d.y! + d.r)) + pad;
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-  }, [layout]);
+  }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "members" | "mutual">("all");
+  const filters = me
+    ? ([
+        ["all", "Todos"],
+        ["mutual", "Mútuos"],
+        ["members", "Já no app"],
+      ] as const)
+    : ([
+        ["all", "Todos"],
+        ["members", "Já no app"],
+      ] as const);
+
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setSpace(e.contentRect.width < 560 ? NARROW : WIDE));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const visible = useMemo(
     () =>
-      nodes.filter((n) =>
-        filter === "members" ? n.member : filter === "mutual" ? n.following && n.follower : true,
-      ),
+      nodes.filter((n) => (filter === "members" ? n.member : filter === "mutual" ? n.following && n.follower : true)),
     [nodes, filter],
   );
 
   useEffect(() => {
+    const { w, h } = space;
     const sim: SimNode[] = [
-      { n: null, r: 30, x: W / 2, y: H / 2, fx: W / 2, fy: H / 2 },
+      ...(me ? [{ n: null, r: 30, x: w / 2, y: h / 2, fx: w / 2, fy: h / 2 }] : []),
       ...visible.map((n, i) => ({
         n,
         r: n.member ? 12 + n.strength * 3 : 3 + n.strength * 1.5,
-        x: W / 2 + Math.cos(i) * 120,
-        y: H / 2 + Math.sin(i) * 120,
+        x: w / 2 + Math.cos(i) * 120,
+        y: h / 2 + Math.sin(i) * 120,
       })),
     ];
     forceSimulation(sim)
-      .force("x", forceX<SimNode>((d) => targetX(d.n)).strength((d) => (d.n?.vote ? 0.12 : 0.05)))
-      .force("y", forceY<SimNode>(H / 2).strength(0.07))
+      .force(
+        "x",
+        forceX<SimNode>((d) => targetX(d.n, w)).strength((d) => (d.n?.vote ? 0.12 : 0.05)),
+      )
+      .force("y", forceY<SimNode>(h / 2).strength(w < h ? 0.03 : 0.07))
       .force("collide", forceCollide<SimNode>((d) => d.r + 2).iterations(3))
       .stop()
       .tick(320);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- layout is computed client-side to avoid hydration mismatch
     setLayout(sim);
-  }, [visible]);
+  }, [visible, space, me]);
+
+  // Focus: zoom the whole bubble onto the selected dot (small dots zoom more).
+  const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const k = focused ? Math.min(4, Math.max(1.8, 50 / focused.r)) : 1;
+  const zoom = focused
+    ? `translate(${cx}px, ${cy}px) scale(${k}) translate(${-focused.x!}px, ${-focused.y!}px)`
+    : "none";
+
+  function pick(n: NetworkNode) {
+    // Second tap on a member opens their bubble.
+    if (selected?.id === n.id && n.member && n.username) router.push(sharePath(n.username));
+    else setSelected(n);
+  }
 
   return (
-    <div className="rounded-2xl border border-line bg-card p-4">
+    <div ref={wrap} className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex gap-1 text-sm">
-          {(
-            [
-              ["all", "Todos"],
-              ["mutual", "Mútuos"],
-              ["members", "Já no app"],
-            ] as const
-          ).map(([k, label]) => (
+          {filters.map(([k, label]) => (
             <button
               key={k}
               onClick={() => setFilter(k)}
@@ -107,13 +149,19 @@ export function Bubble({
           ))}
         </div>
       </div>
-      <div className="mb-2 flex flex-wrap gap-4 text-xs text-subtle">
+      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
         <Legend c="var(--lula)" label="Lula" />
         <Legend c="var(--bolso)" label="Bolsonaro" />
         <Legend c="var(--none)" label="Ainda não votou" />
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
-      <svg viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} className="h-auto w-full touch-manipulation" role="img" aria-label="Grafo da sua rede">
+      <svg
+        viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+        className="h-auto w-full touch-manipulation overflow-hidden"
+        role="img"
+        aria-label={title}
+        onClick={(e) => e.target === e.currentTarget && setSelected(null)}
+      >
         <defs>
           {layout?.map((d) =>
             d.n?.avatar ? (
@@ -126,36 +174,59 @@ export function Bubble({
         <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--lula)] text-base font-bold">
           Lula
         </text>
-        <text x={box.x + box.w - 12} y={box.y + 20} textAnchor="end" className="fill-[var(--bolso)] text-base font-bold">
+        <text
+          x={box.x + box.w - 12}
+          y={box.y + 20}
+          textAnchor="end"
+          className="fill-[var(--bolso)] text-base font-bold"
+        >
           Bolsonaro
         </text>
-        {layout?.map((d) => {
-          const n = d.n;
-          const fill = n?.avatar ? `url(#av-${n.id})` : color(n, me);
-          return (
-            <g
-              key={n?.id ?? "me"}
-              transform={`translate(${d.x},${d.y})`}
-              onClick={() => n && setSelected(n)}
-              className={n ? "cursor-pointer" : undefined}
-            >
-              <circle
-                r={d.r}
-                fill={fill}
-                fillOpacity={n && !n.member ? 0.45 : 1}
-                stroke={n?.avatar || !n ? color(n, me) : "var(--card)"}
-                strokeWidth={n?.avatar || !n ? 3 : 1}
-              />
-              {(n?.member || !n) && !n?.avatar && d.r > 11 && (
-                <text textAnchor="middle" dy="0.35em" className="pointer-events-none fill-white text-[10px] font-bold">
-                  {n ? initials(n.name) : centerLabel}
-                </text>
-              )}
-              <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
-            </g>
-          );
-        })}
+        <g className="bubble-zoom" style={{ transform: zoom }}>
+          {layout?.map((d) => {
+            const n = d.n;
+            const fill = n?.avatar ? `url(#av-${n.id})` : color(n, me);
+            // Ripple: dots pop in outward from the middle.
+            const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
+            return (
+              <g
+                key={n?.id ?? "me"}
+                style={{
+                  transform: `translate(${d.x}px, ${d.y}px)`,
+                  opacity: focused && focused !== d ? 0.3 : 1,
+                }}
+                onClick={() => n && pick(n)}
+                className={`bubble-node ${n ? "cursor-pointer" : ""}`}
+              >
+                <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
+                  {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={color(n, me)} strokeWidth={3} />}
+                  <circle
+                    r={d.r}
+                    fill={fill}
+                    fillOpacity={n && !n.member ? 0.45 : 1}
+                    stroke={n?.avatar || !n ? color(n, me) : "var(--card)"}
+                    strokeWidth={n?.avatar || !n ? 3 : 1}
+                  />
+                  {(n?.member || !n) && !n?.avatar && d.r > 11 && (
+                    <text
+                      textAnchor="middle"
+                      dy="0.35em"
+                      className="pointer-events-none fill-white text-[10px] font-bold"
+                    >
+                      {n ? initials(n.name) : centerLabel}
+                    </text>
+                  )}
+                  <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
+                </g>
+              </g>
+            );
+          })}
+        </g>
       </svg>
+      <p className="mt-1 text-xs text-subtle">
+        Toque em alguém para dar zoom
+        {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
+      </p>
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
@@ -180,14 +251,19 @@ function NodeCard({
   onClose,
 }: {
   n: NetworkNode;
-  me: Me;
+  me: Me | null;
   shareBase: string;
   readOnly: boolean;
   onClose: () => void;
 }) {
-  const rel = [n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null, n.invite ? "Convite" : null]
-    .filter(Boolean)
-    .join(" · ");
+  const rel = me
+    ? [
+        n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null,
+        n.invite ? "Convite" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
   const status = !n.member
     ? "Ainda não entrou no app"
     : n.vote
@@ -195,16 +271,16 @@ function NodeCard({
       : "Entrou mas ainda não votou";
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-3">
-      <div>
-        <div className="font-semibold">
+      <div className="min-w-0">
+        <div className="truncate font-semibold">
           {n.name ?? "Conta do X"} {n.username && <span className="font-normal text-subtle">@{n.username}</span>}
         </div>
         <div className="text-sm text-subtle">
           {status} {rel && `· ${rel}`}
         </div>
       </div>
-      <div className="flex gap-2 text-sm">
-        {!n.voted && !readOnly && (
+      <div className="flex flex-wrap gap-2 text-sm">
+        {!n.voted && !readOnly && me && (
           <a
             className="rounded-full bg-fg px-3 py-1.5 text-bg"
             href={inviteTweetUrl(shareBase, me.id, n.username)}
@@ -214,7 +290,17 @@ function NodeCard({
             Pedir pra votar
           </a>
         )}
-        <a className="rounded-full border border-line px-3 py-1.5" href={profileUrl(n)} target="_blank" rel="noreferrer">
+        {n.member && n.username && (
+          <Link className="rounded-full bg-fg px-3 py-1.5 text-bg" href={sharePath(n.username)}>
+            Ver bolha
+          </Link>
+        )}
+        <a
+          className="rounded-full border border-line px-3 py-1.5"
+          href={profileUrl(n)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Ver no X
         </a>
         <button className="px-2 text-subtle" onClick={onClose} aria-label="Fechar">

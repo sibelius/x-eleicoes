@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { devLoginEnabled, getUserId } from "@/lib/session";
 import { xConfigured } from "@/lib/x";
 import { oauth1Configured } from "@/lib/x-oauth1";
+import Link from "next/link";
 
 const ERRORS: Record<string, string> = {
   login: "Não foi possível entrar com o X. Tente de novo.",
@@ -24,6 +25,9 @@ export default function Home({ searchParams }: PageProps<"/">) {
       <Suspense fallback={<div className="mt-8 h-12" />}>
         <Actions searchParams={searchParams} />
       </Suspense>
+      <Link href="/r" className="mt-6 self-start text-sm underline">
+        Ver todas as bolhas
+      </Link>
       <p className="mt-10 text-xs text-subtle">
         Enquete informal entre usuários, sem valor estatístico — não é pesquisa eleitoral. Os votos são públicos e
         aparecem com o @ de quem votou. Você pode excluir seus dados quando quiser.

@@ -6,6 +6,7 @@ import { TallyBar } from "@/components/TallyBar";
 import { sharePath } from "@/lib/links";
 import { getNetwork, getShare, resolveUser } from "@/lib/network";
 import { appUrl } from "@/lib/session";
+import Link from "next/link";
 
 async function load(params: PageProps<"/r/[handle]">["params"]) {
   const handle = decodeURIComponent((await params).handle);
@@ -67,6 +68,9 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       >
         Ver como a minha rede vota
       </a>
+      <Link href="/r" className="mt-3 self-start text-sm text-subtle underline">
+        Ver todas as bolhas
+      </Link>
       {nodes.length > 0 && (
         <div className="mt-8">
           <Bubble
