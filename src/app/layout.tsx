@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { ViewBeacon } from "@/components/ViewBeacon";
+import { LiveBar } from "@/components/LiveBar";
 import { SITE } from "@/lib/views-shared";
 import "./globals.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
+        <LiveBar />
         {children}
         <footer className="mt-auto px-4 py-6 text-center text-xs text-subtle">
           <a href="/apoie" className="font-semibold underline">

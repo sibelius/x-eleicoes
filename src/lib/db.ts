@@ -64,6 +64,12 @@ const SCHEMA = [
     day TEXT NOT NULL,
     PRIMARY KEY (uid, visitor, day)
   )`,
+  // Last heartbeat per visitor, for "N online now".
+  `CREATE TABLE IF NOT EXISTS presence (
+    visitor TEXT PRIMARY KEY,
+    at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS presence_at ON presence (at)`,
   // Bubble totals at the last daily summary push, to tell what changed since.
   `CREATE TABLE IF NOT EXISTS tally_snapshots (
     uid TEXT PRIMARY KEY,
