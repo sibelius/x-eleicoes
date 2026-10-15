@@ -4,7 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
 import { sharePath, shareTweetUrl } from "@/lib/links";
-import { getNetwork, getShare, resolveUser } from "@/lib/network";
+import { getNetwork, getShare, inviteCount, resolveUser } from "@/lib/network";
+import { InviteBadge } from "@/components/InviteBadge";
 import { appUrl } from "@/lib/session";
 import { viewCount } from "@/lib/views";
 import { ViewBeacon } from "@/components/ViewBeacon";
@@ -43,13 +44,15 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   if (handle !== user.username) permanentRedirect(sharePath(user.username));
   const { nodes } = await getNetwork(user.id);
   const me = { ...share.user, vote: share.vote };
-  const views = await viewCount(user.id);
+  const [views, invites] = await Promise.all([viewCount(user.id), inviteCount(user.id)]);
   return (
     <>
       <div className="flex items-center gap-3">
         {share.user.avatar && <img src={share.user.avatar} alt="" className="h-12 w-12 rounded-full" />}
         <div>
-          <div className="text-xl font-bold">{share.user.name}</div>
+          <div className="text-xl font-bold">
+            {share.user.name} <InviteBadge invites={invites} full />
+          </div>
           <div className="text-subtle">@{share.user.username}</div>
         </div>
       </div>

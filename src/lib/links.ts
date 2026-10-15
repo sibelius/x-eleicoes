@@ -75,3 +75,13 @@ export function nudgeTweetUrl(base: string, uid: string, usernames: string[]) {
   const text = `${tags}${tail}`;
   return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(inviteLink(base, uid))}`;
 }
+
+/** Badge for bringing people in through your link. */
+export function inviteBadge(invites: number) {
+  if (invites >= 25) return { emoji: "🥇", label: "Recrutador ouro" };
+  if (invites >= 10) return { emoji: "🥈", label: "Recrutador prata" };
+  if (invites >= 3) return { emoji: "🥉", label: "Recrutador bronze" };
+  return null;
+}
+
+export const BADGE_STEPS = [3, 10, 25];

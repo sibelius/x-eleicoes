@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TallyBar } from "@/components/TallyBar";
+import { InviteBadge } from "@/components/InviteBadge";
 import { sharePath, shareTweetUrl } from "@/lib/links";
 import { Bubble } from "@/components/Bubble";
 import { getGlobalNetwork, listMembers } from "@/lib/network";
@@ -22,6 +23,14 @@ export default function MembersPage({ searchParams }: PageProps<"/r">) {
       </Link>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Todas as bolhas</h1>
       <p className="mt-1 text-subtle">Quem já entrou, como vota, e a bolha de cada um.</p>
+      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+        <Link href="/ranking" className="rounded-full bg-fg px-4 py-2 text-bg">
+          🏆 Ranking das bolhas
+        </Link>
+        <Link href="/c" className="rounded-full border border-line px-4 py-2">
+          Comparar bolhas
+        </Link>
+      </div>
       <Suspense fallback={<p className="mt-6 text-subtle">Carregando…</p>}>
         <Members searchParams={searchParams} />
       </Suspense>
@@ -84,7 +93,9 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
                 <span className="h-11 w-11 shrink-0 rounded-full bg-muted" />
               )}
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{m.name}</span>
+                <span className="block truncate font-semibold">
+                  {m.name} <InviteBadge invites={m.invites ?? 0} />
+                </span>
                 <span className="block truncate text-sm text-subtle">@{m.username}</span>
               </span>
               <span

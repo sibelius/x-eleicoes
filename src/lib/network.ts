@@ -9,6 +9,8 @@ export type Me = {
   name: string;
   avatar: string | null;
   vote: Vote | null;
+  /** Members who joined through this person's link. */
+  invites?: number;
 };
 
 export type NetworkNode = {
@@ -64,7 +66,8 @@ export async function resolveUser(handle: string): Promise<{ id: string; usernam
 export async function listMembers(q = ""): Promise<Me[]> {
   const client = await db();
   const r = await client.execute({
-    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
+            (SELECT COUNT(*) FROM users i WHERE i.invited_by = u.id) AS invites
           FROM users u LEFT JOIN profiles p ON p.id = u.id
           WHERE u.id GLOB '[0-9]*' AND (:q = '' OR u.username LIKE :like OR u.name LIKE :like)
           ORDER BY u.created_at DESC
@@ -77,7 +80,74 @@ export async function listMembers(q = ""): Promise<Me[]> {
     name: String(row.name),
     avatar: (row.avatar as string | null) ?? null,
     vote: (row.vote as Vote | null) ?? null,
+    invites: Number(row.invites),
   }));
+}
+
+export async function inviteCount(uid: string) {
+  const client = await db();
+  const r = await client.execute({ sql: "SELECT COUNT(*) AS n FROM users WHERE invited_by = ?", args: [uid] });
+  return Number(r.rows[0].n);
+}
+
+export type Ranked = Me & { tally: Tally; lulaPct: number };
+
+/**
+ * Every member's bubble tally in one query (votes among the people they follow, who follow them,
+ * or came in through an invite), plus invite counts, for /ranking.
+ */
+export async function getRankings(minVotes = 3) {
+  const client = await db();
+  const [tallies, members] = await client.batch(
+    [
+      `WITH v AS (SELECT id, vote FROM users WHERE vote IS NOT NULL),
+       rel AS (
+         SELECT e.src AS a, v.id AS b, v.vote FROM edges e JOIN v ON v.id = e.dst
+         UNION SELECT e.dst, v.id, v.vote FROM edges e JOIN v ON v.id = e.src
+         UNION SELECT u.invited_by, v.id, v.vote FROM users u JOIN v ON v.id = u.id WHERE u.invited_by IS NOT NULL
+         UNION SELECT v.id, u.id, u.vote FROM v JOIN users u ON u.invited_by = v.id WHERE u.vote IS NOT NULL
+       )
+       SELECT a AS id, SUM(vote = 'lula') AS lula, COUNT(*) AS total
+       FROM rel WHERE a <> b AND a IN (SELECT id FROM users WHERE id GLOB '[0-9]*')
+       GROUP BY a`,
+      `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote,
+         (SELECT COUNT(*) FROM users i WHERE i.invited_by = u.id) AS invites
+       FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id GLOB '[0-9]*'`,
+    ],
+    "read",
+  );
+  const byId = new Map(
+    members.rows.map((r) => [
+      String(r.id),
+      {
+        id: String(r.id),
+        username: String(r.username),
+        name: String(r.name),
+        avatar: (r.avatar as string | null) ?? null,
+        vote: (r.vote as Vote | null) ?? null,
+        invites: Number(r.invites),
+      } satisfies Me,
+    ]),
+  );
+  const ranked: Ranked[] = [];
+  for (const r of tallies.rows) {
+    const m = byId.get(String(r.id));
+    const total = Number(r.total);
+    if (!m || total < minVotes) continue;
+    const lula = Number(r.lula);
+    ranked.push({ ...m, tally: { lula, bolsonaro: total - lula, total }, lulaPct: lula / total });
+  }
+  const top = (xs: Ranked[], score: (r: Ranked) => number) =>
+    [...xs].sort((a, b) => score(b) - score(a) || b.tally.total - a.tally.total).slice(0, 10);
+  return {
+    closedLula: top(ranked.filter((r) => r.lulaPct >= 0.5), (r) => r.lulaPct),
+    closedBolsonaro: top(ranked.filter((r) => r.lulaPct <= 0.5), (r) => 1 - r.lulaPct),
+    mixed: top(ranked.filter((r) => r.tally.total >= 5), (r) => -Math.abs(r.lulaPct - 0.5)),
+    inviters: [...byId.values()]
+      .filter((m) => m.invites! > 0)
+      .sort((a, b) => b.invites! - a.invites!)
+      .slice(0, 10),
+  };
 }
 
 type Row = {

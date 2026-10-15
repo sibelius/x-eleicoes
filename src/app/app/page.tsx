@@ -6,9 +6,10 @@ import { PushToggle } from "@/components/PushToggle";
 import { TallyBar } from "@/components/TallyBar";
 import { VotePanel } from "@/components/VotePanel";
 import { VoteModal } from "@/components/VoteModal";
-import { inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
+import { BADGE_STEPS, inviteLink, inviteTweetUrl, nudgeTweetUrl, sharePath, shareTweetUrl } from "@/lib/links";
 import { viewCount } from "@/lib/views";
-import { getMe, getNetwork } from "@/lib/network";
+import { getMe, getNetwork, inviteCount } from "@/lib/network";
+import { InviteBadge } from "@/components/InviteBadge";
 import { pushPublicKey } from "@/lib/push";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
@@ -31,7 +32,8 @@ async function Dashboard() {
   const pendingMembers = nodes.filter((n) => !n.voted && n.username).slice(0, 8);
   // Joined but haven't voted: worth a public nudge.
   const silent = nodes.filter((n) => n.member && !n.voted && n.username).map((n) => n.username!);
-  const views = await viewCount(me.id);
+  const [views, invites] = await Promise.all([viewCount(me.id), inviteCount(me.id)]);
+  const nextBadge = BADGE_STEPS.find((n) => n > invites);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -40,11 +42,16 @@ async function Dashboard() {
         <div className="flex items-center gap-3">
           {me.avatar && <img src={me.avatar} alt="" className="h-10 w-10 rounded-full" />}
           <div>
-            <div className="font-semibold">{me.name}</div>
+            <div className="font-semibold">
+              {me.name} <InviteBadge invites={invites} />
+            </div>
             <div className="text-sm text-subtle">@{me.username}</div>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">
+          <Link href="/ranking" className="text-subtle underline">
+            Ranking
+          </Link>
           <Link href="/r" className="text-subtle underline">
             Todas as bolhas
           </Link>
@@ -100,6 +107,15 @@ async function Dashboard() {
             <h2 className="text-lg font-semibold">Chame sua rede</h2>
             <p className="mt-1 text-sm text-subtle">
               Quem entrar pelo seu link entra direto na sua bolha.
+            </p>
+            <p className="mt-2 text-sm">
+              <b>{invites}</b> {invites === 1 ? "pessoa entrou" : "pessoas entraram"} pelo seu link{" "}
+              <InviteBadge invites={invites} full />
+              {nextBadge && (
+                <span className="block text-xs text-subtle">
+                  Faltam {nextBadge - invites} para o selo {nextBadge >= 25 ? "🥇" : nextBadge >= 10 ? "🥈" : "🥉"}
+                </span>
+              )}
             </p>
             <code className="mt-2 block truncate rounded-lg bg-muted px-2 py-1.5 text-xs">{inviteLink(base, me.id)}</code>
             <a
