@@ -34,6 +34,12 @@ const ADS = [
     image: "/ads/atletin.png",
     alt: "AtletIn: a vaquinha do atleta brasileiro. Doe via Pix e ganhe cupom das marcas que apoiam o esporte.",
   },
+  {
+    name: "Guara Cloud",
+    href: "https://guaracloud.com/",
+    image: "/ads/guara.png",
+    alt: "Guara Cloud: deploy em segundos na cloud brasileira, com preços em Real.",
+  },
 ];
 
 const CAMPAIGN = "minhabolha2026";
