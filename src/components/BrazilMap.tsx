@@ -211,7 +211,7 @@ export function BrazilMap({
               <rect width={2.2 / s} height={7 / s} style={{ fill: "var(--map-hatch)" }} />
             </pattern>
           </defs>
-          <g style={{ ...pz.stageStyle, transition: pz.dragging ? undefined : "transform 350ms ease" }}>
+          <g style={{ ...pz.stageStyle, transition: pz.moving ? undefined : "transform 350ms ease" }}>
             {ALL.map((uf) => (
               <path
                 key={uf}

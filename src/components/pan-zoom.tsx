@@ -3,16 +3,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Pan & zoom for the bubble's SVG views: one view transform (translate, then scale) in viewBox units,
-// driven by drag, pinch, ctrl/⌘ + wheel (plain wheel in fullscreen), arrows/+/−/0 keys and the buttons.
+// driven by drag (middle-button drag too), pinch, ctrl/⌘ + wheel (plain wheel in fullscreen), shift + wheel to pan,
+// arrows/+/−/0 keys and the buttons.
 
 export type Box = { x: number; y: number; w: number; h: number };
 const HOME = { k: 1, x: 0, y: 0 };
 const MAX_ZOOM = 8;
 
-export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: { onDragStart?: () => void; resetKey?: unknown } = {}) {
+/** `onMove` fires when the camera starts moving under the user (drag, wheel), e.g. to drop a hover card. */
+export function usePanZoom(box: Box, full: boolean, { onMove, resetKey }: { onMove?: () => void; resetKey?: unknown } = {}) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState(HOME);
   const [dragging, setDragging] = useState(false);
+  // Wheel zoom/pan updates come in bursts: skip the easing while they last so the camera follows the wheel.
+  const [wheeling, setWheeling] = useState(false);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const onMoveRef = useRef(onMove);
+  useEffect(() => {
+    onMoveRef.current = onMove;
+  });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ travel: 0, moved: false, dist: 0 });
   const cx = box.x + box.w / 2;
@@ -34,6 +43,7 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
   const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
     setView((v) => {
       const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
+      if (k === v.k) return v; // already at a limit
       if (k === 1) return HOME;
       const f = k / v.k;
       return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
@@ -43,19 +53,45 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    // Plain wheel keeps scrolling the page (zooms in fullscreen); pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
+    // Plain wheel keeps scrolling the page (zooms in fullscreen); pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms;
+    // shift + wheel pans.
     const onWheel = (e: WheelEvent) => {
-      if (!full && !e.ctrlKey && !e.metaKey) return;
+      const pan = e.shiftKey && !e.ctrlKey && !e.metaKey;
+      if (!pan && !full && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.005));
+      onMoveRef.current?.();
+      setWheeling(true);
+      clearTimeout(wheelTimer.current);
+      wheelTimer.current = setTimeout(() => setWheeling(false), 150);
+      // Mice in line/page mode report deltas in lines or pages, not pixels.
+      const unit = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? el.clientHeight : 1;
+      if (pan) {
+        // Some browsers turn shift + wheel into a horizontal scroll (deltaX); either way it moves the camera.
+        const s = unit / el.getScreenCTM()!.a;
+        setView((v) => ({ ...v, x: v.x - e.deltaX * s, y: v.y - e.deltaY * s }));
+        return;
+      }
+      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * unit * 0.005));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      clearTimeout(wheelTimer.current);
+    };
   }, [toViewBox, zoomAt, full]);
 
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (e.button !== 0 && e.button !== 1) return; // right click keeps its menu
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) gesture.current = { travel: 0, moved: false, dist: 0 };
+    // Middle button: always a pan, never a tap (and no autoscroll).
+    if (e.button === 1) {
+      e.preventDefault();
+      gesture.current.moved = true;
+      setDragging(true);
+      onMoveRef.current?.();
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -83,7 +119,7 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
     if (!g.moved) {
       g.moved = true;
       setDragging(true);
-      onDragStart?.();
+      onMoveRef.current?.();
       e.currentTarget.setPointerCapture(e.pointerId);
     }
     const s = 1 / e.currentTarget.getScreenCTM()!.a;
@@ -93,6 +129,7 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
   function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size === 0) setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
   /** Moves the camera by a fraction of the visible area (→ shows more of the right side). */
@@ -112,6 +149,8 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
     svgRef,
     view,
     dragging,
+    /** Dragging or wheeling: the stage should follow without easing. */
+    moving: dragging || wheeling,
     /** The current pointer gesture moved (a drag, not a tap). */
     moved: () => gesture.current.moved,
     /** A finger or button is down on the SVG. */
@@ -133,13 +172,17 @@ export function usePanZoom(box: Box, full: boolean, { onDragStart, resetKey }: {
       onPointerMove,
       onPointerUp,
       onPointerCancel: onPointerUp,
+      // Capture lost (window blur, element gone): forget the pointer so the next gesture starts clean.
+      onLostPointerCapture: onPointerUp,
+      onAuxClick: (e: React.MouseEvent) => e.button === 1 && e.preventDefault(),
       onKeyDown: (e: React.KeyboardEvent) => {
         const dir = ({ ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] } as Record<string, number[]>)[e.key];
+        const zoom = e.key === "+" || e.key === "=" ? 1.6 : e.key === "-" ? 1 / 1.6 : 0;
+        if (dir || zoom || e.key === "0") onMoveRef.current?.();
         if (dir) {
           e.preventDefault();
           pan(dir[0] / 2, dir[1] / 2);
-        } else if (e.key === "+" || e.key === "=") zoomAt({ x: cx, y: cy }, 1.6);
-        else if (e.key === "-") zoomAt({ x: cx, y: cy }, 1 / 1.6);
+        } else if (zoom) zoomAt({ x: cx, y: cy }, zoom);
         else if (e.key === "0") home();
       },
     },

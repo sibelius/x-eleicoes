@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SimulationNodeDatum } from "d3-force";
 import { simulateAsync } from "./bubble-sim";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
@@ -31,6 +31,13 @@ const BubbleStates = dynamic(() => import("./BrazilMap").then((m) => m.BubbleSta
 
 type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 type View = "bubble" | "map" | "states";
+// Hover card: waits a moment before opening so sweeping the mouse across the bubble doesn't flash cards,
+// and lingers a moment before closing so moving to a neighbor swaps the card instead of blinking.
+const HOVER_OPEN_MS = 500;
+const HOVER_CLOSE_MS = 150;
+const CARD_W = 240;
+const CARD_H = 80;
+
 const VIEWS: [View, string][] = [
   ["bubble", "Bolha"],
   ["map", "Mapa"],
@@ -50,6 +57,10 @@ function targetX(n: NetworkNode | null, w: number) {
   if (n.vote === "green") return w * 0.72;
   // Non-voters lean toward the side of the voters connected to them (combined bubble).
   return w / 2 + (n.lean ?? 0) * w * 0.2;
+}
+
+function nodeLabel(n: NetworkNode) {
+  return `${n.name ?? "Conta do X"}${n.username ? ` (@${n.username})` : ""}`;
 }
 
 function initials(name: string | null) {
@@ -91,13 +102,20 @@ export function Bubble({
   sides?: Sides;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
+  const fullButton = useRef<HTMLButtonElement>(null);
   const [space, setSpace] = useState(WIDE);
   const [measured, setMeasured] = useState(false);
   // Three ways to look at the same people: the bubble, the follow network ("Mapa"), and by state.
   const [view, setView] = useState<View>("bubble");
   const [selected, setSelected] = useState<NetworkNode | null>(null);
-  // Mouse hover: a small card next to the cursor, so people are easy to tell apart without clicking.
-  const [hover, setHover] = useState<{ n: NetworkNode; x: number; y: number; flip: boolean } | null>(null);
+  // Mouse hover / keyboard focus: a small card next to the dot, so people are easy to tell apart without clicking.
+  const [hover, setHover] = useState<{ n: NetworkNode; style: React.CSSProperties } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hoverId = useId();
+  const closeHover = () => {
+    clearTimeout(hoverTimer.current);
+    setHover(null);
+  };
   const [full, setFull] = useState(false);
   // Bumped to send the camera home (filter, fullscreen, tap on the background).
   const [resetKey, setResetKey] = useState(0);
@@ -118,18 +136,66 @@ export function Bubble({
         ["members", "Já no app"],
       ] as const);
 
-  // Fullscreen is a fixed overlay (works on iPhone, where element fullscreen doesn't): Esc closes it, the page behind doesn't scroll.
+  // Fullscreen is a fixed overlay (works on iPhone, where element fullscreen doesn't), behaving as a modal dialog:
+  // Esc closes it (a hover card first), the page behind doesn't scroll and can't be reached, Tab cycles inside it,
+  // and focus goes back to the toggle when it closes.
   useEffect(() => {
-    if (!full) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    if (!full || !wrap.current) return;
+    const overlay = wrap.current;
+    const trigger = fullButton.current;
     const overflow = document.body.style.overflow;
+    const inert = new Map<HTMLElement, boolean>();
+    for (let el: HTMLElement = overlay; el.parentElement && el !== document.body; el = el.parentElement) {
+      for (const sib of el.parentElement.children) {
+        if (sib === el || !(sib instanceof HTMLElement)) continue;
+        inert.set(sib, sib.inert);
+        sib.inert = true;
+      }
+    }
     document.body.style.overflow = "hidden";
+    trigger?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!e.defaultPrevented) setFull(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const stops = [...overlay.querySelectorAll<HTMLElement | SVGElement>('button, a[href], [tabindex="0"]')].filter(
+        (el) => el.getClientRects().length > 0 && !el.hasAttribute("disabled"),
+      );
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = overflow;
+      for (const [el, was] of inert) el.inert = was;
       window.removeEventListener("keydown", onKey);
+      trigger?.focus({ preventScroll: true });
     };
   }, [full]);
+
+  // Esc dismisses the hover card (and only the card, when it's open in fullscreen).
+  useEffect(() => {
+    if (!hover) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      clearTimeout(hoverTimer.current);
+      setHover(null);
+    };
+    // Capture, so it runs before the fullscreen handler and can keep it from closing.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hover]);
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
 
   useEffect(() => {
     const el = wrap.current;
@@ -169,22 +235,41 @@ export function Bubble({
         return false;
       }
       setSelected(n);
-      setHover(null);
+      closeHover();
       return true;
     },
-    onHover(n, e) {
-      if (!n || !e) return setHover(null);
-      const rect = (e.currentTarget as SVGElement).ownerSVGElement!.parentElement!.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      setHover({ n, x, y: e.clientY - rect.top, flip: x > rect.width - 260 });
+    onHover(n, target, now) {
+      clearTimeout(hoverTimer.current);
+      if (!n || !target) {
+        if (now) setHover(null);
+        else hoverTimer.current = setTimeout(() => setHover(null), HOVER_CLOSE_MS);
+        return;
+      }
+      // Under the dot (above it near the bottom), kept inside the canvas.
+      const box = (target as SVGElement).ownerSVGElement!.parentElement!.getBoundingClientRect();
+      const dot = target.getBoundingClientRect();
+      const left = Math.max(0, Math.min(dot.left + dot.width / 2 - box.left - CARD_W / 2, box.width - CARD_W));
+      const below = dot.bottom - box.top + 8;
+      const style: React.CSSProperties =
+        below + CARD_H > box.height && dot.top - box.top > CARD_H + 8
+          ? { left, bottom: box.bottom - dot.top + 8 }
+          : { left, top: below };
+      const show = () => setHover({ n, style });
+      // Already showing a card (moving to a neighbor) or keyboard focus: no wait.
+      if (now || hover) show();
+      else hoverTimer.current = setTimeout(show, HOVER_OPEN_MS);
     },
     onReset: reset,
+    describedBy: (n) => (hover?.n.id === n.id ? hoverId : undefined),
   };
 
   return (
     <div
       ref={wrap}
       data-tour="bubble"
+      role={full ? "dialog" : undefined}
+      aria-modal={full || undefined}
+      aria-label={full ? title : undefined}
       className={full ? "fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg p-3" : "rounded-2xl border border-line bg-card p-4"}
       style={
         {
@@ -218,7 +303,7 @@ export function Bubble({
                 onClick={() => {
                   setView(k);
                   setSelected(null);
-                  setHover(null);
+                  closeHover();
                 }}
                 className={`rounded-full px-3 py-0.5 ${view === k ? "bg-fg text-bg" : ""}`}
               >
@@ -227,7 +312,9 @@ export function Bubble({
             ))}
           </div>
           <button
+            ref={fullButton}
             type="button"
+            aria-pressed={full}
             onClick={() => {
               setFull((f) => !f);
               reset();
@@ -279,16 +366,7 @@ export function Bubble({
         <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
           {view === "map" ? <NetworkMap {...canvas} /> : <BubbleCanvas {...canvas} centerLabel={centerLabel} sides={sides} ready={measured} />}
           {hover && hover.n.id !== selected?.id && (
-            <HoverCard
-              n={hover.n}
-              me={me}
-              sides={sides}
-              online={online.has(hover.n.id)}
-              style={{
-                top: hover.y + 14,
-                ...(hover.flip ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 }),
-              }}
-            />
+            <HoverCard id={hoverId} n={hover.n} me={me} sides={sides} online={online.has(hover.n.id)} style={hover.style} />
           )}
         </div>
       )}
@@ -299,7 +377,8 @@ export function Bubble({
       )}
       {view !== "states" && (
         <p className="mt-1 text-xs text-subtle">
-          Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar
+          Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar (no computador:
+          Ctrl + roda para zoom, Shift + roda para mover, Tab para passar pelas pessoas)
           {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
         </p>
       )}
@@ -326,6 +405,7 @@ function BubbleCanvas({
   onPick,
   onHover,
   onReset,
+  describedBy,
   centerLabel,
   sides,
   ready,
@@ -364,7 +444,7 @@ function BubbleCanvas({
     );
   }, [visible, space, me, ready]);
 
-  const pz = usePanZoom(box, full, { onDragStart: () => onHover(null), resetKey });
+  const pz = usePanZoom(box, full, { onMove: () => onHover(null, undefined, true), resetKey });
   const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;
   const { cx, cy } = pz;
 
@@ -373,7 +453,7 @@ function BubbleCanvas({
       <svg
         {...pz.svgProps}
         className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${pz.dragging ? "cursor-grabbing" : "cursor-grab"}`}
-        role="img"
+        role="group"
         aria-label={title}
         onClick={(e) => e.target === e.currentTarget && !pz.moved() && onReset()}
       >
@@ -402,7 +482,7 @@ function BubbleCanvas({
         >
           {sides.green.label}
         </text>
-        <g className={`bubble-zoom ${pz.dragging ? "is-dragging" : ""}`} style={pz.stageStyle}>
+        <g className={`bubble-zoom ${pz.moving ? "is-dragging" : ""}`} style={pz.stageStyle}>
           {layout?.map((d) => {
             const n = d.n;
             const avatar = n ? n.avatar : me?.avatar;
@@ -417,16 +497,27 @@ function BubbleCanvas({
                   transform: `translate(${d.x}px, ${d.y}px)`,
                   opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
                 }}
+                role={n ? "button" : undefined}
+                tabIndex={n ? 0 : undefined}
+                aria-label={n ? nodeLabel(n) : undefined}
+                aria-describedby={n ? describedBy(n) : undefined}
                 onClick={() => {
                   if (!n || pz.moved()) return; // the end of a drag, not a tap
                   if (onPick(n)) pz.focus(d.x!, d.y!, d.r);
                 }}
+                onKeyDown={(e) => {
+                  if (!n || (e.key !== "Enter" && e.key !== " ")) return;
+                  e.preventDefault();
+                  if (onPick(n)) pz.focus(d.x!, d.y!, d.r);
+                }}
                 onPointerEnter={(e) => {
                   if (!n || e.pointerType !== "mouse" || pz.pressed()) return;
-                  onHover(n, e);
+                  onHover(n, e.currentTarget);
                 }}
                 onPointerLeave={() => onHover(null)}
-                className={`bubble-node ${n ? "cursor-pointer" : ""}`}
+                onFocus={(e) => n && e.currentTarget.matches(":focus-visible") && onHover(n, e.currentTarget, true)}
+                onBlur={() => onHover(null)}
+                className={`bubble-node dot-focus ${n ? "cursor-pointer" : ""}`}
               >
                 <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
                   {/* The owner: a halo and a pulsing ring around their photo. */}
@@ -497,12 +588,14 @@ function status(n: NetworkNode, sides: Sides) {
 }
 
 function HoverCard({
+  id,
   n,
   me,
   sides,
   online,
   style,
 }: {
+  id: string;
   n: NetworkNode;
   me: Me | null;
   sides: Sides;
@@ -512,6 +605,8 @@ function HoverCard({
   const rel = relation(n, me);
   return (
     <div
+      id={id}
+      role="tooltip"
       className="pointer-events-none absolute z-10 flex w-60 items-center gap-3 rounded-xl border border-line bg-card p-2.5 shadow-lg"
       style={style}
     >

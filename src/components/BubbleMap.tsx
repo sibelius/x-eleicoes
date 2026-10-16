@@ -31,7 +31,10 @@ export type CanvasProps = {
   resetKey: number;
   /** Tap on someone; true = zoom onto them. */
   onPick: (n: NetworkNode) => boolean;
-  onHover: (n: NetworkNode | null, e?: React.PointerEvent) => void;
+  /** Shows the hover card for `n` next to its dot (`target`), after a short delay unless `now`; null hides it. */
+  onHover: (n: NetworkNode | null, target?: Element, now?: boolean) => void;
+  /** The hover card's id while it's showing `n` (for aria-describedby). */
+  describedBy: (n: NetworkNode) => string | undefined;
   onReset: () => void;
 };
 
@@ -126,7 +129,7 @@ function hullsOf(dots: Dot[]) {
 }
 
 export function NetworkMap(p: CanvasProps) {
-  const { me, nodes, space, full, title, selected, online, resetKey, onPick, onHover, onReset } = p;
+  const { me, nodes, space, full, title, selected, online, resetKey, onPick, onHover, onReset, describedBy } = p;
   const key = me?.id ?? "";
   const [data, setData] = useState<{ key: string; map: BubbleMap | null } | null>(null);
   useEffect(() => {
@@ -144,7 +147,7 @@ export function NetworkMap(p: CanvasProps) {
   const laid = useMemo(() => (map ? layOut(nodes, map, space) : null), [map, nodes, space]);
   const hulls = useMemo(() => (laid ? hullsOf(laid.dots) : []), [laid]);
   const box = useMemo(() => fitBox(laid?.dots ?? null, space, 8), [laid, space]);
-  const pz = usePanZoom(box, full, { onDragStart: () => onHover(null), resetKey });
+  const pz = usePanZoom(box, full, { onMove: () => onHover(null, undefined, true), resetKey });
   const focused = selected ? laid?.dots.find((d) => d.n.id === selected.id) : undefined;
   const [hoverId, setHoverId] = useState<string | null>(null);
   const lit = focused?.n.id ?? hoverId;
@@ -181,7 +184,7 @@ export function NetworkMap(p: CanvasProps) {
       <svg
         {...pz.svgProps}
         className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${pz.dragging ? "cursor-grabbing" : "cursor-grab"}`}
-        role="img"
+        role="group"
         aria-label={`${title}: quem segue quem`}
         onClick={(e) => e.target === e.currentTarget && !pz.moved() && onReset()}
       >
@@ -192,7 +195,7 @@ export function NetworkMap(p: CanvasProps) {
             </pattern>
           ))}
         </defs>
-        <g className={`bubble-zoom ${pz.dragging ? "is-dragging" : ""}`} style={pz.stageStyle}>
+        <g className={`bubble-zoom ${pz.moving ? "is-dragging" : ""}`} style={pz.stageStyle}>
           {hulls.map((c) => (
             <g key={c.g} className="pointer-events-none">
               <circle cx={c.x} cy={c.y} r={c.r} fill="var(--fg)" fillOpacity={0.035} stroke="var(--line)" strokeDasharray="4 4" />
@@ -218,20 +221,31 @@ export function NetworkMap(p: CanvasProps) {
                 key={n.id}
                 transform={`translate(${d.x!.toFixed(1)} ${d.y!.toFixed(1)})`}
                 opacity={dim ? 0.3 : n.member ? 1 : 0.8}
-                className="cursor-pointer"
+                className="dot-focus cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`${n.name ?? "Conta do X"}${n.username ? ` (@${n.username})` : ""}`}
+                aria-describedby={describedBy(n)}
                 onClick={() => {
                   if (pz.moved()) return;
+                  if (onPick(n)) pz.focus(d.x!, d.y!, d.r, 2.2);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
                   if (onPick(n)) pz.focus(d.x!, d.y!, d.r, 2.2);
                 }}
                 onPointerEnter={(e) => {
                   if (e.pointerType !== "mouse" || pz.pressed()) return;
                   setHoverId(n.id);
-                  onHover(n, e);
+                  onHover(n, e.currentTarget);
                 }}
                 onPointerLeave={() => {
                   setHoverId((h) => (h === n.id ? null : h));
                   onHover(null);
                 }}
+                onFocus={(e) => e.currentTarget.matches(":focus-visible") && onHover(n, e.currentTarget, true)}
+                onBlur={() => onHover(null)}
               >
                 <circle
                   r={d.r}

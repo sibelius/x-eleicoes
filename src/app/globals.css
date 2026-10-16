@@ -96,6 +96,9 @@ body {
 .bubble-zoom.is-dragging {
   transition: none;
 }
+/* Keyboard focus on a person's dot (Tab through the bubble). */
+.dot-focus { outline: none; }
+.dot-focus:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 9999px; }
 @media (prefers-reduced-motion: reduce) {
   .bubble-pop, .bubble-pulse, .bubble-live, .bubble-sonar { animation: none; }
   .bubble-node, .bubble-zoom { transition: none; }
