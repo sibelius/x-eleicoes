@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: PageProps<"/t/[topic]">): Pro
   const topic = await load(params);
   if (!topic) return {};
   return {
-    title: `${topic.title} · Minha Bolha`,
+    title: `${topic.title}`,
     description: topic.question,
     robots: topic.status === "live" ? undefined : { index: false, follow: false },
   };

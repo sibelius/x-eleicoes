@@ -3,18 +3,19 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { GlobalMap } from "@/components/GlobalMap";
-import { StatesGrid } from "@/components/StatesMap";
+import { StatesLive } from "@/components/StatesLive";
 import { Tour } from "@/components/Tour";
 import { LiveRoom } from "@/components/play/LiveRoom";
 import { isLiveNight } from "@/lib/links";
-import { allStates } from "@/lib/places";
+import { recentPicks, stateHistory } from "@/lib/places";
 import { getMe } from "@/lib/network";
 import { getRoom } from "@/lib/room";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Mapa de todas as bolhas · Minha Bolha",
+  title: "Mapa de todas as bolhas",
   description: "Todas as contas da bolha das bolhas num mapa só. Busque um @ e veja quem está em volta.",
+  alternates: { canonical: "/mapa" },
 };
 
 export default function MapPage({ searchParams }: PageProps<"/mapa">) {
@@ -75,12 +76,11 @@ async function Views({ searchParams }: { searchParams: PageProps<"/mapa">["searc
 
 async function States() {
   await connection();
-  const states = await allStates();
+  const [history, feed] = await Promise.all([stateHistory(), recentPicks()]);
   return (
-    <section className="mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-line bg-card p-4">
-      <h1 className="text-lg font-semibold">Vermelho × Verde por estado</h1>
-      <p className="mb-3 text-sm text-subtle">Todo mundo que entrou no app e tem estado conhecido.</p>
-      <StatesGrid states={states} everyone full />
+    <section className="mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+      <h1 className="sr-only">Vermelho × Verde por estado</h1>
+      <StatesLive initial={{ history, feed }} />
     </section>
   );
 }

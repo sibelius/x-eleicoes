@@ -7,7 +7,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
 import { SIDE, comparePath, compareTweetUrl, pct, sharePath } from "@/lib/links";
-import { getComparison } from "@/lib/network";
+import { getComparison, resolveUser } from "@/lib/network";
 import { appUrl } from "@/lib/session";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import { ShareMenu } from "@/components/ShareMenu";
@@ -19,12 +19,17 @@ async function load(params: Params) {
   return getComparison(decodeURIComponent(a), decodeURIComponent(b));
 }
 
+// Only the two handles: the full comparison (two whole networks) is left to the page.
 export async function generateMetadata({ params }: PageProps<"/c/[a]/[b]">): Promise<Metadata> {
-  const c = await load(params);
-  if (!c) return {};
+  const { a, b } = await params;
+  const [ua, ub] = await Promise.all([resolveUser(decodeURIComponent(a)), resolveUser(decodeURIComponent(b))]);
+  if (!ua || !ub) return {};
   return {
-    title: `@${c.a.user.username} × @${c.b.user.username}: de que lado estão as bolhas`,
-    description: "Compare a sua bolha do X com a de qualquer pessoa: Vermelho ou Verde.",
+    title: `@${ua.username} × @${ub.username}: de que lado estão as bolhas`,
+    description: `A bolha de @${ua.username} e a de @${ub.username} no X lado a lado: Vermelho, Verde e quem as duas redes têm em comum.`,
+    alternates: { canonical: comparePath(ua.username, ub.username) },
+    // Endless pairs of the same people: the /r pages are the ones to index.
+    robots: { index: false, follow: true },
   };
 }
 
@@ -123,7 +128,7 @@ async function Compare({ params }: { params: Params }) {
                   className="flex items-center gap-2 rounded-full border px-2 py-1"
                   style={{ borderColor: n.vote === "red" ? "var(--red)" : n.vote === "green" ? "var(--green)" : "var(--line)" }}
                 >
-                  {n.avatar && <img src={n.avatar} alt="" className="h-6 w-6 rounded-full" />}@{n.username}
+                  {n.avatar && <img src={n.avatar} alt="" width={24} height={24} loading="lazy" decoding="async" className="h-6 w-6 rounded-full" />}@{n.username}
                 </a>
               </li>
             ))}

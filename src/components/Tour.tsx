@@ -1,10 +1,14 @@
 "use client";
 
-import { TourProvider, useTour, type StepType } from "@reactour/tour";
-import { useEffect } from "react";
+import type { StepType } from "@reactour/tour";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 
 // Guided tours (Reactour): each screen has its own, started from a "Como usar" button and once
 // automatically on the first visit. Steps point at [data-tour="…"] marks; missing ones are skipped.
+// Reactour itself (TourRunner) loads only when a tour starts, not with the page.
+
+const TourRunner = dynamic(() => import("./TourRunner").then((m) => m.TourRunner), { ssr: false });
 
 const step = (tour: string, content: string): StepType => ({ selector: `[data-tour="${tour}"]`, content });
 
@@ -85,55 +89,14 @@ const doneKey = (name: string) => `xe_tour_${name}`;
 
 /** A "Como usar" button that runs the screen's tour; it also runs once by itself on the first visit. */
 export function Tour({ name, autoStart = true }: { name: TourName; autoStart?: boolean }) {
-  return (
-    <TourProvider
-      steps={[]}
-      padding={{ mask: 6, popover: 12 }}
-      scrollSmooth
-      beforeClose={() => {
-        try {
-          localStorage.setItem(doneKey(name), "1");
-        } catch {}
-      }}
-      styles={{
-        popover: (base) => ({
-          ...base,
-          background: "var(--card)",
-          color: "var(--fg)",
-          borderRadius: 16,
-          padding: "22px 20px 14px",
-          maxWidth: "min(340px, calc(100vw - 32px))",
-          boxShadow: "0 12px 40px rgb(0 0 0 / 0.25)",
-          fontSize: 15,
-          lineHeight: 1.45,
-        }),
-        maskArea: (base) => ({ ...base, rx: 14 }),
-        maskWrapper: (base) => ({ ...base, color: "rgb(0 0 0 / 0.55)" }),
-        badge: (base) => ({ ...base, background: "var(--fg)", color: "var(--bg)", fontWeight: 700 }),
-        close: (base) => ({ ...base, color: "var(--subtle)", top: 10, right: 10 }),
-        arrow: (base, state) => ({ ...base, color: state?.disabled ? "var(--line)" : "var(--fg)" }),
-        dot: (base, state) => ({
-          ...base,
-          background: state?.current ? "var(--fg)" : "transparent",
-          borderColor: state?.current ? "var(--fg)" : "var(--line)",
-        }),
-      }}
-    >
-      <Launcher name={name} autoStart={autoStart} />
-    </TourProvider>
-  );
-}
-
-function Launcher({ name, autoStart }: { name: TourName; autoStart: boolean }) {
-  const { setIsOpen, setSteps, setCurrentStep } = useTour();
+  // Each start bumps `run`, which (re)opens the tour with the steps found on screen.
+  const [req, setReq] = useState<{ steps: StepType[]; run: number } | null>(null);
 
   const start = () => {
     // Only steps whose target is on screen (some sections show up only in some states).
     const steps = (TOURS[name] as StepType[]).filter((s) => typeof s.selector !== "string" || document.querySelector(s.selector));
     if (!steps.length) return;
-    setSteps?.(steps);
-    setCurrentStep(0);
-    setIsOpen(true);
+    setReq((r) => ({ steps, run: (r?.run ?? 0) + 1 }));
   };
 
   useEffect(() => {
@@ -143,14 +106,24 @@ function Launcher({ name, autoStart }: { name: TourName; autoStart: boolean }) {
       seen = localStorage.getItem(doneKey(name)) === "1";
     } catch {}
     if (seen) return;
+    void import("./TourRunner"); // fetch Reactour now, so the tour isn't late
     const t = setTimeout(start, 1200); // after the page has settled
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, autoStart]);
 
+  const done = () => {
+    try {
+      localStorage.setItem(doneKey(name), "1");
+    } catch {}
+  };
+
   return (
-    <button type="button" data-tour="tour" onClick={start} className="rounded-full border border-line px-3 py-1 text-sm whitespace-nowrap text-subtle hover:bg-muted">
-      ❓ Como usar
-    </button>
+    <>
+      <button type="button" data-tour="tour" onClick={start} className="rounded-full border border-line px-3 py-1 text-sm whitespace-nowrap text-subtle hover:bg-muted">
+        ❓ Como usar
+      </button>
+      {req && <TourRunner steps={req.steps} run={req.run} onClose={done} />}
+    </>
   );
 }

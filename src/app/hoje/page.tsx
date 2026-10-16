@@ -10,8 +10,9 @@ import { adoptVisitorPlay, dailyLeaderboard, getDailyQuestion, getDailyResult, n
 import { appUrl, getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Pergunta do dia · Minha Bolha",
+  title: "Pergunta do dia",
   description: "Todo dia uma bolha nova: chute a % Verde, compare com todo mundo e mantenha sua sequência 🔥",
+  alternates: { canonical: "/hoje" },
 };
 
 export default function HojePage() {

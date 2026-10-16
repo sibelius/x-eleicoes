@@ -65,7 +65,7 @@ export function Timeline({ points, events, title = "Como a bolha evoluiu" }: { p
         <ul className="mt-3 grid max-h-64 gap-1.5 overflow-y-auto text-sm">
           {events.map((e, i) => (
             <li key={i} className="flex items-center gap-2">
-              {e.avatar ? <img src={e.avatar} alt="" className="h-6 w-6 rounded-full" /> : <span className="h-6 w-6 rounded-full bg-muted" />}
+              {e.avatar ? <img src={e.avatar} alt="" width={24} height={24} loading="lazy" decoding="async" className="h-6 w-6 rounded-full" /> : <span className="h-6 w-6 rounded-full bg-muted" />}
               <span className="min-w-0 flex-1 truncate">
                 <a href={sharePath(e.username)} className="font-semibold">
                   @{e.username}

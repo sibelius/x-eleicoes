@@ -7,6 +7,13 @@ import { xConfigured } from "@/lib/x";
 import { oauth1Configured } from "@/lib/x-oauth1";
 import Link from "next/link";
 import { InviteOpenBeacon } from "@/components/play/InviteOpenBeacon";
+import type { Metadata } from "next";
+import { DEFINITION, JsonLd, siteGraph } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: { absolute: "Minha Bolha: de que lado está a sua rede do X? Vermelho ou Verde" },
+  alternates: { canonical: "/" },
+};
 
 const ERRORS: Record<string, string> = {
   login: "Não foi possível entrar com o X. Tente de novo.",
@@ -38,6 +45,13 @@ export default function Home({ searchParams }: PageProps<"/">) {
         Brincadeira entre usuários do X, sem valor estatístico. As escolhas são públicas e
         aparecem com o @ de quem escolheu. Você pode excluir seus dados quando quiser.
       </p>
+      <p className="mt-2 text-xs text-subtle">
+        {DEFINITION}{" "}
+        <Link href="/sobre" className="underline">
+          Como funciona e perguntas frequentes
+        </Link>
+      </p>
+      <JsonLd data={siteGraph()} />
       <div className="mt-10">
         <SupportStrip placement="home" />
       </div>

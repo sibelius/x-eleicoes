@@ -8,8 +8,9 @@ import { getMe } from "@/lib/network";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Comparar bolhas · Minha Bolha",
+  title: "Comparar bolhas",
   description: "Compare a sua bolha do X com a de qualquer pessoa: Vermelho ou Verde.",
+  alternates: { canonical: "/c" },
 };
 
 const clean = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim().replace(/^@/, "") : "");

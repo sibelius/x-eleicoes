@@ -12,8 +12,10 @@ import { appUrl, getUserId } from "@/lib/session";
 export async function generateMetadata({ params }: PageProps<"/w/[handle]">): Promise<Metadata> {
   const handle = decodeURIComponent((await params).handle);
   return {
-    title: `Retrospectiva da bolha de @${handle} · Minha Bolha`,
+    title: `Retrospectiva da bolha de @${handle}`,
     description: "Quão fechada é a bolha, o gêmeo de bolha, a ponte para o outro lado e quem chegou primeiro.",
+    // A view of the same bubble as /r/<handle>, which is the page to index.
+    robots: { index: false, follow: true },
   };
 }
 

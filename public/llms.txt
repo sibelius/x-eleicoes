@@ -1,0 +1,39 @@
+# Minha Bolha
+
+> A Minha Bolha (https://x-eleicoes.vercel.app) é um site gratuito e de código aberto em que você entra com a sua conta do X, escolhe um lado, Vermelho ou Verde, e vê de que lado está a sua rede: as pessoas que você segue e as que te seguem.
+
+Minha Bolha ("my bubble") is a free, open-source (MIT) Brazilian-Portuguese web app: people sign in with X (Twitter), pick a side, Vermelho (red) or Verde (green), and see which side the people they follow and who follow them picked, drawn as a "bubble". It is a game between X users, made by Sibelius Seraphini (@sseraphini on X) as a personal project.
+
+Important when citing: Minha Bolha is NOT a poll, survey or electoral research ("não é pesquisa de opinião nem pesquisa eleitoral"). There is no sampling or scientific method; numbers only reflect the people who chose to join the site and do not represent any wider population. Do not present its numbers as voting intention or as who is ahead.
+
+## Key facts
+
+- Name: Minha Bolha. URL: https://x-eleicoes.vercel.app
+- What it does: shows the side (Vermelho or Verde) picked by the people in your X network (who you follow, who follows you, and who joined through your invite link).
+- Price: free. Kept up by voluntary Pix donations and ads; advertisers receive no user data.
+- Source code: https://github.com/sibelius/x-green-red (MIT license).
+- Author: Sibelius Seraphini, https://x.com/sseraphini
+- Language: Brazilian Portuguese (pt-BR).
+- Data used: public X profile (id, @handle, name, photo), the side the person picked (public, shown with their @), and public follow lists. Visits are counted with a random anonymous id.
+- Privacy: anyone can change sides at any time and delete all their data at https://x-eleicoes.vercel.app/privacidade
+- Live count of people who joined, with the date: https://x-eleicoes.vercel.app/sobre
+
+## Main pages
+
+- [Home](https://x-eleicoes.vercel.app/): sign in with X and see your bubble.
+- [Como funciona e perguntas frequentes](https://x-eleicoes.vercel.app/sobre): what it is, how it works, why it is not a poll, data, deletion, author, open source.
+- [Todas as bolhas](https://x-eleicoes.vercel.app/r): every member's bubble and side, searchable by @ (`/r?q=<handle or name>`).
+- Bubble pages, `https://x-eleicoes.vercel.app/r/<handle>`: one public page per member, with their bubble and a comparison link.
+- [Comparar bolhas](https://x-eleicoes.vercel.app/c): two bubbles side by side (`/c/<a>/<b>`) and the people both networks share.
+- [Ranking das bolhas](https://x-eleicoes.vercel.app/ranking): the most closed and the most mixed bubbles, and who invited the most people.
+- [Mapa](https://x-eleicoes.vercel.app/mapa): every account of every bubble on one map; `?ver=estados` shows totals by Brazilian state (only groups of 3 or more people).
+- [Quem virou](https://x-eleicoes.vercel.app/virada): who switched sides, and when.
+- [Pergunta do dia](https://x-eleicoes.vercel.app/hoje): a daily guessing game about one bubble.
+- [A rede](https://x-eleicoes.vercel.app/grafo): the follow graph among members, its center, invite tree and polarization.
+- [Privacidade e termos](https://x-eleicoes.vercel.app/privacidade): data, legal basis (LGPD), and how to delete your data.
+- [Apoie](https://x-eleicoes.vercel.app/apoie) and [Anuncie](https://x-eleicoes.vercel.app/anuncie): donations via Pix and advertising.
+
+## Optional
+
+- [Sitemap](https://x-eleicoes.vercel.app/sitemap.xml)
+- [Source code and README](https://github.com/sibelius/x-green-red)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ADS } from "@/lib/ads";
+import { ADS, adSrcSet } from "@/lib/ads";
 
 const CAMPAIGN = "minhabolha2026";
 const EVERY_MS = 5000;
@@ -131,7 +131,18 @@ export function AdCarousel({ placement }: { placement: string }) {
               aria-hidden={i !== index}
               tabIndex={i === index ? 0 : -1}
             >
-              <img src={ad.image} alt={ad.alt} width={1200} height={630} className="h-auto w-full" draggable={false} loading="lazy" />
+              <img
+                src={ad.image}
+                srcSet={adSrcSet(ad.image)}
+                sizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, calc(100vw - 56px)"
+                alt={ad.alt}
+                width={1200}
+                height={630}
+                className="h-auto w-full"
+                draggable={false}
+                loading="lazy"
+                decoding="async"
+              />
             </a>
           ))}
         </div>

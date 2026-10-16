@@ -47,7 +47,7 @@ export function StatePicker({ initial }: { initial?: Place }) {
 
   const value = place === undefined ? "" : place?.uf ?? (place?.source === "self" ? HIDDEN : "");
   return (
-    <div className="rounded-2xl border border-line bg-card p-4">
+    <div id="estado" className="scroll-mt-4 rounded-2xl border border-line bg-card p-4">
       <label className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-semibold">📍 Seu estado</span>
         <select

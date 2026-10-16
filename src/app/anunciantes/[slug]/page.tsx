@@ -10,7 +10,7 @@ import { adBySlug, checkReportToken, getSponsorReport, placementLabel } from "@/
 // A sponsor's own numbers, shared by link (/anunciantes/<slug>?k=<HMAC>): no login, wrong key → 404.
 
 export const metadata: Metadata = {
-  title: "Relatório do anunciante · Minha Bolha",
+  title: "Relatório do anunciante",
   robots: { index: false, follow: false },
 };
 

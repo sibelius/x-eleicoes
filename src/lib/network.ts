@@ -17,6 +17,8 @@ export type Me = {
   vote: Vote | null;
   /** Members who joined through this person's link. */
   invites?: number;
+  /** "public" unless the member chose otherwise (getMe only). */
+  visibility?: string;
 };
 
 export type NetworkNode = {
@@ -42,7 +44,7 @@ export type Tally = { red: number; green: number; total: number };
 export async function getMe(uid: string): Promise<Me | null> {
   const client = await db();
   const r = await client.execute({
-    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote
+    sql: `SELECT u.id, u.username, u.name, COALESCE(u.avatar, p.avatar) AS avatar, u.vote, u.visibility
           FROM users u LEFT JOIN profiles p ON p.id = u.id WHERE u.id = ?`,
     args: [uid],
   });
@@ -54,6 +56,7 @@ export async function getMe(uid: string): Promise<Me | null> {
     name: String(row.name),
     avatar: (row.avatar as string | null) ?? null,
     vote: (row.vote as Vote | null) ?? null,
+    visibility: String(row.visibility),
   };
 }
 
@@ -123,6 +126,30 @@ export async function bubbleTallies(): Promise<{ id: string; red: number; total:
   return r.rows
     .map((row) => ({ id: String(row.id), red: Number(row.red), total: Number(row.total) }))
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Bubbles below this many voters are "em formação": too thin to show search engines. */
+export const INDEX_MIN_VOTES = 3;
+
+/**
+ * Bubble pages worth indexing (sitemap): members whose bubble is public and has at least
+ * INDEX_MIN_VOTES voters, newest activity first, capped.
+ */
+export async function indexableMembers(limit = 5000): Promise<{ username: string; at: number }[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
+  const client = await db();
+  const [tallies, members] = await Promise.all([
+    bubbleTallies(),
+    client.execute(`SELECT id, username, COALESCE(voted_at, created_at) AS at FROM users
+       WHERE id GLOB '[0-9]*' AND visibility = 'public' ORDER BY id`),
+  ]);
+  const enough = new Set(tallies.filter((t) => t.total >= INDEX_MIN_VOTES).map((t) => t.id));
+  return members.rows
+    .filter((r) => enough.has(String(r.id)))
+    .map((r) => ({ username: String(r.username), at: Number(r.at) }))
+    .sort((a, b) => b.at - a.at || a.username.localeCompare(b.username))
+    .slice(0, limit);
 }
 
 export type Ranked = Me & { tally: Tally; redPct: number };
@@ -356,6 +383,7 @@ export async function getShare(uid: string) {
     vote: me.vote,
     /** False for a known X account that hasn't joined (e.g. a famous profile). */
     member: !("profile" in me),
+    public: !("profile" in me) && me.visibility === "public",
     tally: tally(rows),
     members: rows.length,
   };

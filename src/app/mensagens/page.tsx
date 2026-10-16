@@ -11,7 +11,7 @@ import { isMuted, markAllSeen, myMessages } from "@/lib/messages";
 import { getMe } from "@/lib/network";
 import { getUserId } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Mensagens · Minha Bolha" };
+export const metadata: Metadata = { title: "Mensagens", robots: { index: false } };
 
 export default function MessagesPage() {
   return (

@@ -12,8 +12,9 @@ import { RaceBoard } from "@/components/play/RaceBoard";
 import { DailyBoards } from "@/components/play/DailyBoards";
 
 export const metadata: Metadata = {
-  title: "Ranking das bolhas · Minha Bolha",
+  title: "Ranking das bolhas",
   description: "As bolhas mais fechadas no Vermelho e no Verde, as mais mistas, e quem mais trouxe gente.",
+  alternates: { canonical: "/ranking" },
 };
 
 export default function RankingPage() {
@@ -71,7 +72,7 @@ function Board<T extends Me>({ title, rows, stat, color }: { title: string; rows
             <li key={m.id}>
               <a href={sharePath(m.username)} className="flex items-center gap-3 rounded-xl p-1 hover:bg-muted">
                 <span className="w-5 text-right text-sm text-subtle">{i + 1}</span>
-                {m.avatar ? <img src={m.avatar} alt="" className="h-9 w-9 rounded-full" /> : <span className="h-9 w-9 rounded-full bg-muted" />}
+                {m.avatar ? <img src={m.avatar} alt="" width={36} height={36} loading="lazy" decoding="async" className="h-9 w-9 rounded-full" /> : <span className="h-9 w-9 rounded-full bg-muted" />}
                 <span className="min-w-0 flex-1 truncate">
                   <b>@{m.username}</b> <InviteBadge invites={m.invites ?? 0} />
                   {"tally" in m && (

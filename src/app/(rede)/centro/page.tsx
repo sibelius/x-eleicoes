@@ -6,8 +6,9 @@ import { Shimmer } from "@/components/Skeleton";
 import { publicGraph } from "@/lib/insights";
 
 export const metadata: Metadata = {
-  title: "Quem é o centro da rede · Minha Bolha",
+  title: "Quem é o centro da rede",
   description: "PageRank, intermediação e proximidade: quem está no centro da rede de quem entrou na Minha Bolha.",
+  alternates: { canonical: "/centro" },
 };
 
 export default function Page({ searchParams }: PageProps<"/centro">) {

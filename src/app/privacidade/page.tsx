@@ -5,8 +5,9 @@ import { DeleteAccount } from "@/components/DeleteAccount";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Privacidade e termos · Minha Bolha",
+  title: "Privacidade e termos",
   description: "Quais dados a Minha Bolha usa, por quê, e como excluir os seus.",
+  alternates: { canonical: "/privacidade" },
 };
 
 const CONTACT = "https://x.com/messages/compose?recipient_id=2313873457";

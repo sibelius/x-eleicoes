@@ -69,6 +69,16 @@ describe("people and bubbles", () => {
     expect(r.inviters[0].invites).toBeGreaterThan(0);
   });
 
+  it("indexableMembers: public members with a big enough bubble, newest first (sitemap)", async () => {
+    const tallies = await network.bubbleTallies();
+    const list = await same(() => network.indexableMembers());
+    const enough = new Set(tallies.filter((t) => t.total >= network.INDEX_MIN_VOTES).map((t) => MEMBERS.find((m) => m.id === t.id)?.username));
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.every((m) => enough.has(m.username))).toBe(true);
+    expect(list.map((m) => m.at)).toEqual([...list.map((m) => m.at)].sort((a, b) => b - a));
+    expect(await same(() => network.indexableMembers(2))).toHaveLength(2);
+  });
+
   it("getNetwork, getShare, getTimeline, getBubbleSize", async () => {
     const n = await same(() => network.getNetwork("1001"));
     expect(n.tally.total).toBeGreaterThan(0);

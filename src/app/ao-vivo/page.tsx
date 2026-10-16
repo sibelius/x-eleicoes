@@ -11,8 +11,9 @@ import { appUrl } from "@/lib/session";
 import { getRoom } from "@/lib/room";
 
 export const metadata: Metadata = {
-  title: "Ao vivo · Minha Bolha",
+  title: "Ao vivo",
   description: "Vermelho × Verde ao vivo: o placar de todo mundo, quem está online de cada lado e cada escolha na hora.",
+  alternates: { canonical: "/ao-vivo" },
 };
 
 export default function LivePage() {

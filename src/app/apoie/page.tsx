@@ -8,8 +8,9 @@ import { SupporterWall } from "@/components/SupporterWall";
 import { AD_DM_URL as AD_DM } from "@/lib/links";
 
 export const metadata: Metadata = {
-  title: "Apoie · Minha Bolha",
+  title: "Apoie",
   description: "Ajude a manter a Minha Bolha no ar: doe via Pix ou anuncie aqui.",
+  alternates: { canonical: "/apoie" },
 };
 
 export default function ApoiePage() {

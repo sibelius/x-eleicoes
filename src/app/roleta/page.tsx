@@ -8,8 +8,9 @@ import { getMe } from "@/lib/network";
 import { appUrl, getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Roleta · Minha Bolha",
+  title: "Roleta",
   description: "Conheça alguém aleatório da Minha Bolha, do seu lado ou do outro, e puxe conversa no X.",
+  robots: { index: false },
 };
 
 export default function RoletaPage() {

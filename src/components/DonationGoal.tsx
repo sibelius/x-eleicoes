@@ -5,7 +5,7 @@ export async function DonationGoal({ compact = false }: { compact?: boolean }) {
   const g = await getGoalProgress();
   const pct = g.goal ? Math.min(100, Math.round((g.raised / g.goal) * 100)) : 0;
   const bar = (
-    <div className={`overflow-hidden rounded-full bg-muted ${compact ? "h-1.5" : "h-3"}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+    <div className={`overflow-hidden rounded-full bg-muted ${compact ? "h-1.5" : "h-3"}`} role="progressbar" aria-label="Meta de doações do mês" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
       <div className="h-full rounded-full bg-[var(--green)]" style={{ width: `${Math.max(pct, g.raised ? 2 : 0)}%` }} />
     </div>
   );

@@ -8,7 +8,7 @@ import { ReplyButtons } from "./Reply";
 
 /**
  * Realtime messages while the site is open: polls every 8s (visible tab, signed in) and shows a toast
- * for each new ask to change color, or answer to one. Stops polling for visitors without a login.
+ * for each new ask to change color, or answer to one. Stops polling for visitors without a login (204).
  */
 export function Inbox() {
   const [toasts, setToasts] = useState<Message[]>([]);
@@ -18,7 +18,7 @@ export function Inbox() {
       if (stop || document.visibilityState !== "visible") return;
       fetch("/api/inbox", { cache: "no-store" })
         .then((r) => {
-          if (r.status === 401) {
+          if (r.status === 204 || r.status === 401) {
             stop = true;
             clearInterval(timer);
             return null;

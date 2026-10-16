@@ -8,7 +8,8 @@ import { appUrl, getUserId } from "@/lib/session";
 /** Polled by the toast while the site is open: new messages for the signed-in member. */
 export async function GET() {
   const uid = await getUserId();
-  if (!uid) return NextResponse.json({ messages: [] }, { status: 401 });
+  // Visitors: 204, not 401, so every page view doesn't log a failed request in the console.
+  if (!uid) return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   return NextResponse.json({ messages: await takeLive(uid) }, { headers: { "Cache-Control": "no-store" } });
 }
 

@@ -28,23 +28,22 @@ export function LiveBar() {
     };
   }, []);
 
+  // Before the first beat the same line is laid out invisibly (placeholder numbers), so the bar
+  // already has its final height (two lines on phones) and nothing below it jumps (CLS).
+  const shown = live ?? { online: 10, today: 1000, members: 1000 };
   return (
     <div className="flex min-h-9 flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-line bg-card px-4 py-2 text-sm">
-      {live ? (
-        <>
-          <span className="flex items-center gap-2 font-semibold">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--green)] opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--green)]" />
-            </span>
-            {n(live.online)} {live.online === 1 ? "pessoa online" : "pessoas online"} agora
+      <div className={`contents ${live ? "" : "[&>*]:invisible"}`} aria-hidden={!live}>
+        <span className="flex items-center gap-2 font-semibold">
+          <span className="relative flex h-2.5 w-2.5">
+            {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--green)] opacity-75" />}
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--green)]" />
           </span>
-          <span className="text-subtle">👀 {n(live.today)} hoje</span>
-          <span className="text-subtle">🙋 {n(live.members)} já entraram</span>
-        </>
-      ) : (
-        <span className="text-subtle">&nbsp;</span>
-      )}
+          {n(shown.online)} {shown.online === 1 ? "pessoa online" : "pessoas online"} agora
+        </span>
+        <span className="text-subtle">👀 {n(shown.today)} hoje</span>
+        <span className="text-subtle">🙋 {n(shown.members)} já entraram</span>
+      </div>
     </div>
   );
 }

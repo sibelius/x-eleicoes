@@ -8,8 +8,9 @@ import { SIDE, pct, sharePath } from "@/lib/links";
 import { getSwing } from "@/lib/social";
 
 export const metadata: Metadata = {
-  title: "Quem virou · Minha Bolha",
+  title: "Quem virou",
   description: "Quem trocou de lado, quantos foram para cada lado, e as bolhas divididas ao meio.",
+  alternates: { canonical: "/virada" },
 };
 
 export default function SwingPage() {

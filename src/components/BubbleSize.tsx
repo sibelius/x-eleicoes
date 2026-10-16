@@ -32,7 +32,7 @@ export function BubbleSize({ size, nudgeUrl }: { size: Size; nudgeUrl?: string }
             {size.silent.map((m) => (
               <li key={m.id}>
                 <a href={sharePath(m.username)} className="flex items-center gap-1.5 rounded-full border border-line px-2 py-1">
-                  {m.avatar ? <img src={m.avatar} alt="" className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-muted" />}@
+                  {m.avatar ? <img src={m.avatar} alt="" width={20} height={20} loading="lazy" decoding="async" className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-muted" />}@
                   {m.username}
                 </a>
               </li>

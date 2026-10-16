@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
+import type { SimulationNodeDatum } from "d3-force";
+import { simulateAsync } from "./bubble-sim";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
-import { NetworkMap, type CanvasProps } from "./BubbleMap";
-import { BubbleStates } from "./StatesMap";
+import dynamic from "next/dynamic";
+import type { CanvasProps } from "./BubbleMap";
 import { BubbleVideo } from "./BubbleVideo";
 import { LiveWatchers, useLive } from "./LiveWatchers";
 import { PanZoomControls, fitBox, usePanZoom } from "./pan-zoom";
@@ -19,6 +20,14 @@ const DEFAULT_SIDES: Sides = { red: { label: SIDE.red }, green: { label: SIDE.gr
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
 const NARROW = { w: 400, h: 620 };
+
+// The other two views load only when their tab is opened.
+const NetworkMap = dynamic(() => import("./BubbleMap").then((m) => m.NetworkMap), {
+  loading: () => <div className="shimmer aspect-[4/3] w-full rounded-xl" aria-label="Carregando o mapa" />,
+});
+const BubbleStates = dynamic(() => import("./BrazilMap").then((m) => m.BubbleStates), {
+  loading: () => <div className="shimmer mx-auto aspect-square w-full max-w-[640px] rounded-xl" />,
+});
 
 type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
 type View = "bubble" | "map" | "states";
@@ -83,6 +92,7 @@ export function Bubble({
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState(WIDE);
+  const [measured, setMeasured] = useState(false);
   // Three ways to look at the same people: the bubble, the follow network ("Mapa"), and by state.
   const [view, setView] = useState<View>("bubble");
   const [selected, setSelected] = useState<NetworkNode | null>(null);
@@ -124,7 +134,10 @@ export function Bubble({
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setSpace(e.contentRect.width < 560 ? NARROW : WIDE));
+    const ro = new ResizeObserver(([e]) => {
+      setSpace(e.contentRect.width < 560 ? NARROW : WIDE);
+      setMeasured(true);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -264,7 +277,7 @@ export function Bubble({
         <BubbleStates uid={me?.id ?? null} labels={{ red: sides.red.label, green: sides.green.label }} full={full} />
       ) : (
         <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
-          {view === "map" ? <NetworkMap {...canvas} /> : <BubbleCanvas {...canvas} centerLabel={centerLabel} sides={sides} />}
+          {view === "map" ? <NetworkMap {...canvas} /> : <BubbleCanvas {...canvas} centerLabel={centerLabel} sides={sides} ready={measured} />}
           {hover && hover.n.id !== selected?.id && (
             <HoverCard
               n={hover.n}
@@ -315,11 +328,14 @@ function BubbleCanvas({
   onReset,
   centerLabel,
   sides,
-}: CanvasProps & { centerLabel: string; sides: Sides }) {
+  ready,
+}: CanvasProps & { centerLabel: string; sides: Sides; ready: boolean }) {
   const [layout, setLayout] = useState<SimNode[] | null>(null);
   const box = useMemo(() => fitBox(layout, space), [layout, space]);
 
   useEffect(() => {
+    // Wait for the container's real size: a phone would otherwise lay out twice (wide, then narrow).
+    if (!ready) return;
     const { w, h } = space;
     const sim: SimNode[] = [
       ...(me ? [{ n: null, r: 30, x: w / 2, y: h / 2, fx: w / 2, fy: h / 2 }] : []),
@@ -330,18 +346,23 @@ function BubbleCanvas({
         y: h / 2 + Math.sin(i) * 120,
       })),
     ];
-    forceSimulation(sim)
-      .force(
-        "x",
-        forceX<SimNode>((d) => targetX(d.n, w)).strength((d) => (d.n?.vote ? 0.12 : 0.05)),
-      )
-      .force("y", forceY<SimNode>(h / 2).strength(w < h ? 0.03 : 0.07))
-      .force("collide", forceCollide<SimNode>((d) => d.r + (d.n ? 2 : 10)).iterations(3))
-      .stop()
-      .tick(320);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- layout is computed client-side to avoid hydration mismatch
-    setLayout(sim);
-  }, [visible, space, me]);
+    // Laid out in a Web Worker (layout is computed client-side to avoid hydration mismatch).
+    return simulateAsync(
+      {
+        r: sim.map((d) => d.r),
+        x: sim.map((d) => d.x!),
+        y: sim.map((d) => d.y!),
+        tx: sim.map((d) => targetX(d.n, w)),
+        sx: sim.map((d) => (d.n?.vote ? 0.12 : 0.05)),
+        pad: sim.map((d) => (d.n ? 2 : 10)),
+        fixed: sim.map((d) => !d.n),
+        cy: h / 2,
+        sy: w < h ? 0.03 : 0.07,
+        ticks: 320,
+      },
+      (pos) => setLayout(sim.map((d, i) => ({ ...d, x: pos[i * 2], y: pos[i * 2 + 1] }))),
+    );
+  }, [visible, space, me, ready]);
 
   const pz = usePanZoom(box, full, { onDragStart: () => onHover(null), resetKey });
   const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageSkeleton, Shimmer } from "@/components/Skeleton";
 import { SupportStrip } from "@/components/SupportStrip";
@@ -32,6 +33,9 @@ import { BridgeCard } from "@/components/play/BridgeCard";
 import { getBridge, getMissing, getTwins, inviteOpens } from "@/lib/social";
 import { unseenCount } from "@/lib/messages";
 import { getRaceBoard } from "@/lib/race";
+
+// Signed-in dashboard: nothing here for search engines.
+export const metadata: Metadata = { title: "Sua bolha", robots: { index: false } };
 
 export default function AppPage() {
   return (

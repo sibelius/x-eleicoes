@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { PageSkeleton } from "@/components/Skeleton";
 import { listTopics } from "@/lib/topics";
 
-export const metadata: Metadata = { title: "Temas · Minha Bolha" };
+export const metadata: Metadata = { title: "Temas" };
 
 export default function TopicsPage() {
   return (

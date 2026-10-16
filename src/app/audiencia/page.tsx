@@ -13,8 +13,9 @@ import { getMe } from "@/lib/network";
 import { getUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Sua audiência (beta) · Minha Bolha",
+  title: "Sua audiência (beta)",
   description: "Quem importa na sua audiência do X: alcance, pontes entre os lados e comunidades.",
+  robots: { index: false },
 };
 
 export default function Page() {

@@ -101,3 +101,119 @@ export async function allStates(): Promise<StateCount[]> {
   );
   return aggregate(r.rows);
 }
+
+// ── The live map's history and feed ─────────────────────────────────────────────────────────────
+
+/** One day's map: per state [red, green, none] with 3+ people, 0 under that (no counts). */
+export type DayStates = Partial<Record<UF, [number, number, number] | 0>>;
+
+export type StateHistory = {
+  /** Brasília calendar days, oldest first; the last one is today (current picks). */
+  days: string[];
+  /** Per day, the whole app's picks (members with or without a known state). */
+  app: { red: number; green: number }[];
+  /** Per day, the map at the end of that day (current states, picks as of then). */
+  states: DayStates[];
+};
+
+const BRT = 3 * 3600_000; // Brasília is UTC−3 all year
+const DAY_MS = 86_400_000;
+export const HISTORY_DAYS = 60;
+
+export const brtDay = (at: number) => new Date(at - BRT).toISOString().slice(0, 10);
+const dayEnd = (day: string) => Date.parse(`${day}T00:00:00Z`) + DAY_MS + BRT;
+
+/** Builds the per-day maps in memory: person ids never leave this function, only per-state totals do. */
+export function buildHistory(
+  places: { uid: string; uf: string; createdAt: number; vote: string | null }[],
+  changes: { uid: string; to: string; at: number }[],
+  now: number,
+  maxDays = HISTORY_DAYS,
+): StateHistory {
+  const today = brtDay(now);
+  const first = changes.length ? brtDay(Math.min(...changes.map((c) => c.at))) : today;
+  const days: string[] = [];
+  for (let t = Math.max(Date.parse(`${first}T00:00:00Z`), Date.parse(`${today}T00:00:00Z`) - (maxDays - 1) * DAY_MS); ; t += DAY_MS) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    days.push(d);
+    if (d >= today) break;
+  }
+  const sorted = [...changes].sort((a, b) => a.at - b.at);
+  const vote = new Map<string, string>();
+  const placeOf = new Map(places.filter((p) => isUf(p.uf)).map((p) => [p.uid, p]));
+  const app: StateHistory["app"] = [];
+  const states: DayStates[] = [];
+  let i = 0;
+  for (const day of days) {
+    const last = day === today;
+    const end = last ? Infinity : dayEnd(day);
+    for (; i < sorted.length && sorted[i].at < end; i++) vote.set(sorted[i].uid, sorted[i].to);
+    let red = 0;
+    let green = 0;
+    for (const v of vote.values()) {
+      if (v === "red") red++;
+      else if (v === "green") green++;
+    }
+    app.push({ red, green });
+    const by = new Map<UF, [number, number, number]>();
+    for (const p of placeOf.values()) {
+      if (!last && p.createdAt >= end) continue;
+      // Today is the live map (current picks); earlier days replay vote_changes.
+      const v = last ? p.vote : (vote.get(p.uid) ?? null);
+      const c = by.get(p.uf as UF) ?? [0, 0, 0];
+      c[v === "red" ? 0 : v === "green" ? 1 : 2]++;
+      by.set(p.uf as UF, c);
+    }
+    const snap: DayStates = {};
+    for (const [uf, c] of by) snap[uf] = c[0] + c[1] + c[2] >= MIN_PEOPLE ? c : 0;
+    states.push(snap);
+  }
+  return { days, app, states };
+}
+
+/** The map of everyone, day by day (aggregates only; see buildHistory). */
+export async function stateHistory(): Promise<StateHistory> {
+  "use cache: remote";
+  cacheLife(SHARED);
+  const client = await db();
+  const [places, changes] = await client.batch(
+    [
+      `SELECT p.uid, p.uf, u.created_at, u.vote
+       FROM user_places p JOIN users u ON u.id = p.uid
+       WHERE p.uf <> '' AND u.id GLOB '[0-9]*'`,
+      `SELECT c.uid, c.to_vote, c.at
+       FROM vote_changes c JOIN users u ON u.id = c.uid
+       WHERE u.id GLOB '[0-9]*'`,
+    ],
+    "read",
+  );
+  return buildHistory(
+    places.rows.map((r) => ({ uid: String(r.uid), uf: String(r.uf), createdAt: Number(r.created_at), vote: (r.vote as string | null) ?? null })),
+    changes.rows.map((r) => ({ uid: String(r.uid), to: String(r.to_vote), at: Number(r.at) })),
+    Date.now(),
+  );
+}
+
+/** A public pick or switch for the "Últimas atualizações" feed: who and which side, never where. */
+export type MapEvent = { username: string; avatar: string | null; from: "red" | "green" | null; to: "red" | "green"; at: number };
+
+/** Latest picks and switches of members whose profile is public. */
+export async function recentPicks(limit = 12): Promise<MapEvent[]> {
+  "use cache: remote";
+  cacheLife(SHARED);
+  const client = await db();
+  const r = await client.execute({
+    sql: `SELECT u.username, COALESCE(u.avatar, p.avatar) AS avatar, c.from_vote, c.to_vote, c.at
+          FROM vote_changes c JOIN users u ON u.id = c.uid LEFT JOIN profiles p ON p.id = u.id
+          WHERE u.visibility = 'public' AND u.id GLOB '[0-9]*' AND (c.from_vote IS NULL OR c.from_vote <> c.to_vote)
+          ORDER BY c.at DESC, c.uid LIMIT ?`,
+    args: [limit],
+  });
+  return r.rows.map((row) => ({
+    username: String(row.username),
+    avatar: (row.avatar as string | null) ?? null,
+    from: row.from_vote === "red" || row.from_vote === "green" ? row.from_vote : null,
+    to: row.to_vote === "red" ? "red" : "green",
+    at: Number(row.at),
+  }));
+}

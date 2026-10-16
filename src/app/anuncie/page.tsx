@@ -8,8 +8,9 @@ import { AD_DM_URL } from "@/lib/links";
 import { PLACEMENTS, getMediaKit, placementLabel } from "@/lib/sponsors";
 
 export const metadata: Metadata = {
-  title: "Anuncie · Minha Bolha",
+  title: "Anuncie",
   description: "Audiência, espaços e como funciona anunciar na Minha Bolha.",
+  alternates: { canonical: "/anuncie" },
 };
 
 const n = (v: number) => v.toLocaleString("pt-BR");

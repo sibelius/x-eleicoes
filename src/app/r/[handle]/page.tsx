@@ -6,7 +6,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Bubble } from "@/components/Bubble";
 import { TallyBar } from "@/components/TallyBar";
 import { SIDE, sharePath, shareTweetUrl, withUtm, wrappedPath } from "@/lib/links";
-import { getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
+import { INDEX_MIN_VOTES, getBubbleSize, getNetwork, getShare, getTimeline, inviteCount, resolveUser } from "@/lib/network";
 import { BubbleSize } from "@/components/BubbleSize";
 import { Timeline } from "@/components/Timeline";
 import { InviteBadge } from "@/components/InviteBadge";
@@ -33,16 +33,29 @@ async function load(params: PageProps<"/r/[handle]">["params"]) {
 export async function generateMetadata({ params }: PageProps<"/r/[handle]">): Promise<Metadata> {
   const share = (await load(params))?.share;
   if (!share) return {};
+  const { username, name } = share.user;
+  const who = name && name !== username ? `${name} (@${username})` : `@${username}`;
+  const voters = share.tally.total;
+  const description = share.member
+    ? voters > 0
+      ? `A bolha de ${who} no X: ${voters} ${voters === 1 ? "pessoa" : "pessoas"} da rede de @${username} já ${voters === 1 ? "escolheu" : "escolheram"} Vermelho ou Verde. Veja a bolha e compare com a sua.`
+      : `A bolha de ${who} no X está em formação: ainda ninguém da rede escolheu Vermelho ou Verde. Veja e compare com a sua.`
+    : `A bolha de ${who} no X, montada com quem já entrou na Minha Bolha e segue ou é seguido por @${username}.`;
   return {
-    title: `De que lado está a rede de @${share.user.username}`,
-    description: "Entre com o X e veja de que lado está a sua rede: Vermelho ou Verde.",
+    title: `De que lado está a rede de @${username}`,
+    description,
+    alternates: { canonical: sharePath(username) },
+    // Indexed: public members with a real bubble. Not: people who never joined (their page is built from
+    // others' links, without their consent), private ones, and thin bubbles still "em formação".
+    robots: share.public && voters >= INDEX_MIN_VOTES ? undefined : { index: false, follow: true },
   };
 }
 
 export default function SharePage({ params }: PageProps<"/r/[handle]">) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-16">
-      <Suspense fallback={<PageSkeleton list={0} />}>
+      {/* A screen tall while loading, so the footer doesn't show and then jump down (CLS). */}
+      <Suspense fallback={<div className="min-h-dvh"><PageSkeleton list={0} /></div>}>
         <Share params={params} />
       </Suspense>
     </main>
@@ -74,7 +87,10 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
   return (
     <GuessProvider bubble={user.id} on={game}>
       <div data-tour="r-header" className="flex items-center gap-3">
-        {share.user.avatar && <img src={share.user.avatar} alt="" className="h-12 w-12 rounded-full" />}
+        {share.user.avatar && (
+          // X's 48px "_normal" photo is blurry at 48 CSS px on most phones; the 200px one isn't.
+          <img src={share.user.avatar.replace("_normal.", "_200x200.")} alt="" width={48} height={48} className="h-12 w-12 rounded-full" />
+        )}
         <div>
           <div className="text-xl font-bold">
             {share.user.name} <InviteBadge invites={invites} full />{" "}

@@ -2,7 +2,6 @@
 
 import { withUtm } from "@/lib/links";
 import { useEffect, useState, type ReactNode } from "react";
-import QRCode from "qrcode";
 import { pixPayload } from "@/lib/pix";
 
 export const PIX = {
@@ -140,6 +139,12 @@ export function ClaimDonation({ amount, compact = false }: { amount: number | nu
   );
 }
 
+/** The QR library loads only when a QR is drawn: it's not needed to show the page. */
+async function qrDataUrl(payload: string, width: number) {
+  const QRCode = (await import("qrcode")).default;
+  return QRCode.toDataURL(payload, { margin: 1, width });
+}
+
 /** Compact Pix for every screen: R$ 10 preselected, small QR on desktop, copy button first on phones. */
 export function DonateMini({ goal }: { goal?: ReactNode }) {
   const [amount, setAmount] = useState(10);
@@ -147,7 +152,7 @@ export function DonateMini({ goal }: { goal?: ReactNode }) {
   const [copied, setCopied] = useState(false);
   const payload = pixPayload({ ...PIX, amount });
   useEffect(() => {
-    QRCode.toDataURL(payload, { margin: 1, width: 160 }).then(setQr, () => setQr(null));
+    qrDataUrl(payload, 160).then(setQr, () => setQr(null));
   }, [payload]);
   async function copy() {
     await navigator.clipboard.writeText(payload);
@@ -157,7 +162,12 @@ export function DonateMini({ goal }: { goal?: ReactNode }) {
   return (
     <div>
       <div className="flex items-center gap-3">
-        {qr && <img src={qr} alt="QR code Pix" className="hidden h-24 w-24 shrink-0 rounded-lg bg-white p-1 sm:block" />}
+        {/* The QR's box is there from the start, so the text beside it doesn't move when it's drawn. */}
+        {qr ? (
+          <img src={qr} alt="QR code Pix" width={96} height={96} className="hidden h-24 w-24 shrink-0 rounded-lg bg-white p-1 sm:block" />
+        ) : (
+          <div className="hidden h-24 w-24 shrink-0 rounded-lg bg-white sm:block" />
+        )}
         <div className="min-w-0 flex-1">
           <div className="font-semibold">💚 Apoie com Pix</div>
           <div className="mt-1 flex flex-wrap gap-1.5 text-sm">
@@ -194,7 +204,7 @@ export function Donate() {
   const payload = pixPayload({ ...PIX, amount: amount ?? undefined });
 
   useEffect(() => {
-    QRCode.toDataURL(payload, { margin: 1, width: 280 }).then(setQr, () => setQr(null));
+    qrDataUrl(payload, 280).then(setQr, () => setQr(null));
   }, [payload]);
 
   async function copy() {

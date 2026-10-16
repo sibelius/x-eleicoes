@@ -4,7 +4,7 @@ import { AdminNav } from "@/components/admin/AdminNav";
 import { requireAdmin } from "@/lib/admin";
 
 export const metadata: Metadata = {
-  title: "Admin · Minha Bolha",
+  title: "Admin",
   robots: { index: false, follow: false },
 };
 

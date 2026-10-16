@@ -15,8 +15,9 @@ import Link from "next/link";
 import { NetworkAnalytics } from "@/components/NetworkAnalytics";
 
 export const metadata: Metadata = {
-  title: "Todas as bolhas · Minha Bolha",
+  title: "Todas as bolhas",
   description: "Veja a bolha e o lado de cada pessoa que já entrou na Minha Bolha.",
+  alternates: { canonical: "/r" },
 };
 
 export default function MembersPage({ searchParams }: PageProps<"/r">) {
@@ -94,7 +95,11 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
                   return (
                     <li key={f.id} className="flex items-center gap-2 rounded-xl bg-muted p-2">
                       <a href={sharePath(f.username)} className="flex min-w-0 flex-1 items-center gap-2">
-                        {f.avatar ? <img src={f.avatar} alt="" className="h-9 w-9 rounded-full" /> : <span className="h-9 w-9 rounded-full bg-card" />}
+                        {f.avatar ? (
+                          <img src={f.avatar} alt="" width={36} height={36} loading="lazy" decoding="async" className="h-9 w-9 rounded-full" />
+                        ) : (
+                          <span className="h-9 w-9 rounded-full bg-card" />
+                        )}
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold">@{f.username}</span>
                           <span className="block text-xs text-subtle">
@@ -139,7 +144,7 @@ async function Members({ searchParams }: { searchParams: PageProps<"/r">["search
               className="flex items-center gap-3 rounded-2xl border border-line bg-card p-3 hover:bg-muted"
             >
               {m.avatar ? (
-                <img src={m.avatar} alt="" className="h-11 w-11 shrink-0 rounded-full" />
+                <img src={m.avatar} alt="" width={44} height={44} loading="lazy" decoding="async" className="h-11 w-11 shrink-0 rounded-full" />
               ) : (
                 <span className="h-11 w-11 shrink-0 rounded-full bg-muted" />
               )}
