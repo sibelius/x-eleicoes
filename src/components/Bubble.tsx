@@ -392,7 +392,7 @@ export function Bubble({
           className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
           style={{ touchAction: isFullscreen || view.k > 1 ? "none" : "pan-y" }}
-          role="img"
+          role="group"
           aria-label={title}
           tabIndex={0}
           onKeyDown={(e) => {
