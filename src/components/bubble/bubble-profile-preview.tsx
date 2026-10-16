@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import type { Vote } from "@/lib/network";
 
 const OPEN_DELAY = 500;
 const CLOSE_DELAY = 150;
 const CARD_WIDTH = 240;
-const CARD_HEIGHT = 72;
+const CARD_HEIGHT = 88;
 const GAP = 8;
 
 export interface BubbleProfile {
@@ -11,6 +12,9 @@ export interface BubbleProfile {
   name: string | null;
   username: string | null;
   avatar: string | null;
+  vote?: Vote | null;
+  detail?: string;
+  isOnline?: boolean;
 }
 
 interface ProfilePreview {
@@ -20,6 +24,7 @@ interface ProfilePreview {
 
 interface ProfilePreviewController {
   preview: ProfilePreview | null;
+  setPreview: Dispatch<SetStateAction<ProfilePreview | null>>;
   open: (profile: BubbleProfile, target: Element, delay?: number) => void;
   close: () => void;
   closeSoon: () => void;
@@ -71,7 +76,7 @@ export function useBubbleProfilePreview(): ProfilePreviewController {
     };
   }, [close, keepOpen]);
 
-  return { preview, open, close, closeSoon, keepOpen };
+  return { preview, setPreview, open, close, closeSoon, keepOpen };
 }
 
 interface BubbleProfilePreviewProps {
@@ -91,12 +96,13 @@ export function BubbleProfilePreview({ id, preview, onPointerEnter, onPointerLea
     : Math.max(GAP, Math.min(anchor.bottom + GAP, window.innerHeight - CARD_HEIGHT - GAP));
   const displayName = profile.name?.trim() || profile.username || "Conta do X";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const borderClassName = profile.vote === "red" ? "border-[var(--red)]" : profile.vote === "green" ? "border-[var(--green)]" : "border-[var(--none)]";
 
   return (
     <div
       id={id}
       role="tooltip"
-      className="fixed z-50 flex min-h-18 items-center gap-3 rounded-xl border border-line bg-card p-3 text-sm text-fg shadow-lg"
+      className="fixed z-50 flex min-h-22 items-center gap-3 rounded-xl border border-line bg-card p-3 text-sm text-fg shadow-lg"
       style={{ left, top, width }}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
@@ -104,13 +110,19 @@ export function BubbleProfilePreview({ id, preview, onPointerEnter, onPointerLea
       {profile.avatar ? (
         // X avatar URLs are external and may change independently of the app.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={profile.avatar} alt="" width={40} height={40} className="size-10 shrink-0 rounded-full object-cover" />
+        <img src={profile.avatar} alt="" width={40} height={40} className={`size-10 shrink-0 rounded-full border-2 object-cover ${borderClassName}`} />
       ) : (
-        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-muted font-semibold">{initials}</span>
+        <span aria-hidden="true" className={`grid size-10 shrink-0 place-items-center rounded-full border-2 bg-muted font-semibold ${borderClassName}`}>{initials}</span>
       )}
       <div className="min-w-0">
         <p className="truncate font-semibold">{displayName}</p>
         {profile.username && <p className="truncate text-subtle">@{profile.username}</p>}
+        {profile.detail && (
+          <p className="truncate text-xs text-subtle">
+            {profile.isOnline && <span className="font-semibold text-[var(--accent)]">Online · </span>}
+            {profile.detail}
+          </p>
+        )}
       </div>
     </div>
   );

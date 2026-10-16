@@ -20,6 +20,8 @@ await withBubbleFixture(async ({ page, browser, base }) => {
   await tooltip.waitFor();
   assert.match(await tooltip.innerText(), /Ana Silva/);
   assert.match(await tooltip.innerText(), /@pessoa0/);
+  assert.match(await tooltip.innerText(), /Time Vermelho/, "profile keeps the existing side information");
+  assert.match(await tooltip.innerText(), /Mútuo/, "profile keeps the existing relationship information");
   assert.equal(await ana.getAttribute("aria-describedby"), await tooltip.getAttribute("id"), "node describes its preview");
   await tooltip.hover();
   await page.waitForTimeout(250);

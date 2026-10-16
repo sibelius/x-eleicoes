@@ -85,7 +85,8 @@ export function Bubble({
   }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
   const previewId = useId();
-  const { preview, open: openPreview, close: closePreview, closeSoon, keepOpen } = useBubbleProfilePreview();
+  const { preview, setPreview: setHover, open: openPreview, close: closePreview, closeSoon, keepOpen } = useBubbleProfilePreview();
+  const [full, setFull] = useState(false);
   const router = useRouter();
   // Who's looking at this bubble right now, and which members are online.
   const live = useLive(me?.id ?? "_all");
@@ -102,6 +103,19 @@ export function Bubble({
         ["all", "Todos"],
         ["members", "Já no app"],
       ] as const);
+
+  // Fullscreen is a fixed overlay (works on iPhone, where element fullscreen doesn't): Esc closes it, the page behind doesn't scroll.
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [full]);
 
   useEffect(() => {
     const el = wrap.current;
@@ -152,38 +166,35 @@ export function Bubble({
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
 
-  const toViewBox = useCallback(
-    (clientX: number, clientY: number) => {
-      const rect = svgRef.current!.getBoundingClientRect();
-      const s = box.w / rect.width;
-      return { x: box.x + (clientX - rect.left) * s, y: box.y + (clientY - rect.top) * s };
-    },
-    [box],
-  );
+  // Screen → viewBox via the SVG's own matrix, so it stays right when fullscreen letterboxes the viewBox.
+  const toViewBox = useCallback((clientX: number, clientY: number) => {
+    const m = svgRef.current!.getScreenCTM()!.inverse();
+    return { x: m.a * clientX + m.c * clientY + m.e, y: m.b * clientX + m.d * clientY + m.f };
+  }, []);
 
   /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
   const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
-    closePreview();
+    setHover(null);
     setView((v) => {
       const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
       if (k === 1) return HOME;
       const f = k / v.k;
       return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
     });
-  }, [closePreview]);
+  }, [setHover]);
 
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    // Plain wheel keeps scrolling the page; pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
+    // Plain wheel keeps scrolling the page (zooms in fullscreen); pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      if (!full && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.005));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [toViewBox, zoomAt]);
+  }, [toViewBox, zoomAt, full]);
 
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -215,9 +226,10 @@ export function Bubble({
     if (!g.moved) {
       g.moved = true;
       setDragging(true);
+      setHover(null);
       e.currentTarget.setPointerCapture(e.pointerId);
     }
-    const s = box.w / e.currentTarget.getBoundingClientRect().width;
+    const s = 1 / e.currentTarget.getScreenCTM()!.a;
     setView((v) => ({ ...v, x: v.x + dx * s, y: v.y + dy * s }));
   }
 
@@ -227,32 +239,48 @@ export function Bubble({
   }
 
   function reset() {
-    closePreview();
     setSelected(null);
     setView(HOME);
   }
 
   /** Moves the camera by a fraction of the visible area (→ shows more of the right side). */
   function pan(dx: number, dy: number) {
-    closePreview();
     setView((v) => ({ ...v, x: v.x - (dx * box.w) / 4, y: v.y - (dy * box.h) / 4 }));
   }
   const moved = view.k > 1 || view.x !== HOME.x || view.y !== HOME.y;
 
+  function showProfile(n: NetworkNode | null, target: Element, delay?: number): void {
+    const person = n ?? me;
+    if (!person) return;
+    openPreview({
+      ...person,
+      detail: n ? [status(n), relation(n, me)].filter(Boolean).join(" · ") : undefined,
+      isOnline: n ? online.has(n.id) : false,
+    }, target, delay);
+  }
+
   function pick(d: SimNode) {
-    closePreview();
     const n = d.n!;
     if (gesture.current.moved) return; // the end of a drag, not a tap
     // Second tap on a member opens their bubble.
     if (selected?.id === n.id && n.member && n.username) return router.push(sharePath(n.username));
     setSelected(n);
+    setHover(null);
     // Focus: zoom onto the dot (small dots zoom more).
     const k = Math.min(4, Math.max(1.8, 50 / d.r));
     setView({ k, x: cx - k * d.x!, y: cy - k * d.y! });
   }
 
   return (
-    <div ref={wrap} data-tour="bubble" className="rounded-2xl border border-line bg-card p-4">
+    <div
+      ref={wrap}
+      data-tour="bubble"
+      className={full ? "fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg p-3" : "rounded-2xl border border-line bg-card p-4"}
+      onClickCapture={closePreview}
+      onKeyDownCapture={(event) => {
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "+", "=", "-", "0", "Enter", " "].includes(event.key)) closePreview();
+      }}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -267,7 +295,7 @@ export function Bubble({
             </a>
           )}
         </div>
-        <div data-tour="bubble-filters" className="flex gap-1 text-sm">
+        <div data-tour="bubble-filters" className="flex flex-wrap gap-1 text-sm">
           {filters.map(([k, label]) => (
             <button
               key={k}
@@ -280,6 +308,17 @@ export function Bubble({
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFull((f) => !f);
+              reset();
+            }}
+            className="rounded-full bg-muted px-3 py-1"
+            aria-label={full ? "Sair da tela cheia" : "Tela cheia"}
+          >
+            {full ? "✕ Fechar" : "⛶ Tela cheia"}
+          </button>
         </div>
       </div>
       {live && live.watching > 0 && (
@@ -294,13 +333,13 @@ export function Bubble({
         {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
-      <div className="relative">
+      <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
         <svg
           ref={svgRef}
           viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
-          className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+          className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
-          style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
+          style={{ touchAction: view.k > 1 || full ? "none" : "pan-y" }}
           role="group"
           aria-label={title}
           tabIndex={0}
@@ -371,11 +410,11 @@ export function Bubble({
                   aria-describedby={preview?.profile.id === profile?.id ? previewId : undefined}
                   onPointerEnter={(e) => {
                     if (!profile || e.pointerType === "touch" || e.buttons !== 0 || pointers.current.size > 0) return;
-                    openPreview(profile, e.currentTarget);
+                    showProfile(n, e.currentTarget);
                   }}
                   onPointerLeave={closeSoon}
                   onFocus={(e) => {
-                    if (profile && e.currentTarget.matches(":focus-visible")) openPreview(profile, e.currentTarget, 0);
+                    if (profile && e.currentTarget.matches(":focus-visible")) showProfile(n, e.currentTarget, 0);
                   }}
                   onBlur={closeSoon}
                   onKeyDown={(e) => {
@@ -426,6 +465,7 @@ export function Bubble({
             })}
           </g>
         </svg>
+        <BubbleProfilePreview id={previewId} preview={preview} onPointerEnter={keepOpen} onPointerLeave={closeSoon} />
         <div className="absolute bottom-1 left-1 grid grid-cols-3 gap-0.5">
           <span />
           <ZoomButton label="Mover para cima" onClick={() => pan(0, -1)}>
@@ -456,7 +496,6 @@ export function Bubble({
           </ZoomButton>
         </div>
       </div>
-      <BubbleProfilePreview id={previewId} preview={preview} onPointerEnter={keepOpen} onPointerLeave={closeSoon} />
       {visible.length === 0 && (
         <p className="-mt-6 mb-4 text-center text-sm text-subtle">
           {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
@@ -469,7 +508,7 @@ export function Bubble({
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
-      {tally && (
+      {tally && !full && (
         <BubbleVideo me={me} nodes={nodes} tally={tally} title={me ? `A bolha de @${me.username}` : title} shareUrl={shareUrl} />
       )}
     </div>
@@ -499,6 +538,20 @@ function Legend({ c, label }: { c: string; label: string }) {
   );
 }
 
+function relation(n: NetworkNode, me: Me | null) {
+  if (!me) return "";
+  return [
+    n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null,
+    n.invite ? "Convite" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function status(n: NetworkNode) {
+  return !n.member ? "Ainda não entrou no app" : n.vote ? `Time ${SIDE[n.vote]}` : "Entrou mas ainda não escolheu";
+}
+
 function NodeCard({
   n,
   me,
@@ -512,19 +565,7 @@ function NodeCard({
   readOnly: boolean;
   onClose: () => void;
 }) {
-  const rel = me
-    ? [
-        n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null,
-        n.invite ? "Convite" : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
-  const status = !n.member
-    ? "Ainda não entrou no app"
-    : n.vote
-      ? `Time ${SIDE[n.vote]}`
-      : "Entrou mas ainda não escolheu";
+  const rel = relation(n, me);
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-3">
       <div className="min-w-0">
@@ -532,7 +573,7 @@ function NodeCard({
           {n.name ?? "Conta do X"} {n.username && <span className="font-normal text-subtle">@{n.username}</span>}
         </div>
         <div className="text-sm text-subtle">
-          {status} {rel && `· ${rel}`}
+          {status(n)} {rel && `· ${rel}`}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 text-sm">
