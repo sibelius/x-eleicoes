@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@libsql/client";
 import postgres from "postgres";
+import { waitUntil } from "@vercel/functions";
 import { PG_TABLES, SQLITE_SCHEMA } from "./schema";
 import { ensureSchema, libsqlDb, mirrored, pgDb, type Db } from "./sql";
 
@@ -43,6 +44,26 @@ class QueryTimeout extends Error {
     super(`[db] no answer from Postgres in ${QUERY_TIMEOUT_MS / 1000}s; pool replaced`);
   }
 }
+const IDLE_TIMEOUT_S = 5;
+
+/**
+ * Keeps the instance awake until postgres.js closes the idle connections (what attachDatabasePool
+ * does for node-postgres), so no socket is left open across a freeze to die there.
+ */
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+let idleDone = () => {};
+function stayAwakeUntilIdle() {
+  if (!process.env.VERCEL_REGION) return;
+  clearTimeout(idleTimer);
+  idleDone();
+  waitUntil(
+    new Promise<void>((resolve) => {
+      idleDone = resolve;
+      idleTimer = setTimeout(resolve, IDLE_TIMEOUT_S * 1000 + 200);
+    }),
+  );
+}
+
 const isRead = (text: string) => /^\s*(SELECT|WITH)\b/i.test(text) && !/\b(INSERT|UPDATE|DELETE)\b/i.test(text);
 
 function pg(): Engine {
@@ -53,7 +74,7 @@ function pg(): Engine {
       postgres(url, {
         prepare: false, // required by the transaction pooler
         max: 5,
-        idle_timeout: 20,
+        idle_timeout: IDLE_TIMEOUT_S,
         connect_timeout: 10,
         max_lifetime: 5 * 60,
         // COUNT/SUM/ids (int8, numeric) as plain numbers, like SQLite.
@@ -73,7 +94,10 @@ function pg(): Engine {
           reject(new QueryTimeout());
         }, QUERY_TIMEOUT_MS);
       });
-      return Promise.race([run(s), timeout]).finally(() => clearTimeout(timer));
+      return Promise.race([run(s), timeout]).finally(() => {
+        clearTimeout(timer);
+        stayAwakeUntilIdle();
+      });
     };
     return {
       db: pgDb({
