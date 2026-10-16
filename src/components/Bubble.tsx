@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
 import { BubbleVideo } from "./BubbleVideo";
 import { LiveWatchers, useLive } from "./LiveWatchers";
 import { SIDE, comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
+import { BubbleProfilePreview, useBubbleProfilePreview } from "./bubble/bubble-profile-preview";
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
@@ -83,6 +84,8 @@ export function Bubble({
     return { x: (x0 + x1 - w) / 2, y: (y0 + y1 - h) / 2, w, h };
   }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
+  const previewId = useId();
+  const { preview, open: openPreview, close: closePreview, closeSoon, keepOpen } = useBubbleProfilePreview();
   const router = useRouter();
   // Who's looking at this bubble right now, and which members are online.
   const live = useLive(me?.id ?? "_all");
@@ -160,13 +163,14 @@ export function Bubble({
 
   /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
   const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
+    closePreview();
     setView((v) => {
       const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
       if (k === 1) return HOME;
       const f = k / v.k;
       return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
     });
-  }, []);
+  }, [closePreview]);
 
   useEffect(() => {
     const el = svgRef.current;
@@ -223,17 +227,20 @@ export function Bubble({
   }
 
   function reset() {
+    closePreview();
     setSelected(null);
     setView(HOME);
   }
 
   /** Moves the camera by a fraction of the visible area (→ shows more of the right side). */
   function pan(dx: number, dy: number) {
+    closePreview();
     setView((v) => ({ ...v, x: v.x - (dx * box.w) / 4, y: v.y - (dy * box.h) / 4 }));
   }
   const moved = view.k > 1 || view.x !== HOME.x || view.y !== HOME.y;
 
   function pick(d: SimNode) {
+    closePreview();
     const n = d.n!;
     if (gesture.current.moved) return; // the end of a drag, not a tap
     // Second tap on a member opens their bubble.
@@ -294,7 +301,7 @@ export function Bubble({
           className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
           style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
-          role="img"
+          role="group"
           aria-label={title}
           tabIndex={0}
           onKeyDown={(e) => {
@@ -306,6 +313,7 @@ export function Bubble({
             else if (e.key === "-") zoomAt({ x: cx, y: cy }, 1 / 1.6);
             else if (e.key === "0") reset();
           }}
+          onPointerDownCapture={closePreview}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -343,6 +351,7 @@ export function Bubble({
           >
             {layout?.map((d) => {
               const n = d.n;
+              const profile = n ?? me;
               const avatar = n ? n.avatar : me?.avatar;
               const ring = color(n, me);
               const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
@@ -356,7 +365,27 @@ export function Bubble({
                     opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
                   }}
                   onClick={() => n && pick(d)}
-                  className={`bubble-node ${n ? "cursor-pointer" : ""}`}
+                  role={n ? "button" : "img"}
+                  tabIndex={0}
+                  aria-label={`${profile?.name ?? profile?.username ?? "Conta do X"}${profile?.username ? ` (@${profile.username})` : ""}`}
+                  aria-describedby={preview?.profile.id === profile?.id ? previewId : undefined}
+                  onPointerEnter={(e) => {
+                    if (!profile || e.pointerType === "touch" || e.buttons !== 0 || pointers.current.size > 0) return;
+                    openPreview(profile, e.currentTarget);
+                  }}
+                  onPointerLeave={closeSoon}
+                  onFocus={(e) => {
+                    if (profile && e.currentTarget.matches(":focus-visible")) openPreview(profile, e.currentTarget, 0);
+                  }}
+                  onBlur={closeSoon}
+                  onKeyDown={(e) => {
+                    if (!n || (e.key !== "Enter" && e.key !== " ")) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    gesture.current.moved = false;
+                    pick(d);
+                  }}
+                  className={`bubble-node focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${n ? "cursor-pointer" : ""}`}
                 >
                   <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
                     {/* The owner: a halo and a pulsing ring around their photo. */}
@@ -391,7 +420,6 @@ export function Bubble({
                         {n ? initials(n.name) : centerLabel}
                       </text>
                     )}
-                    <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
                   </g>
                 </g>
               );
@@ -428,6 +456,7 @@ export function Bubble({
           </ZoomButton>
         </div>
       </div>
+      <BubbleProfilePreview id={previewId} preview={preview} onPointerEnter={keepOpen} onPointerLeave={closeSoon} />
       {visible.length === 0 && (
         <p className="-mt-6 mb-4 text-center text-sm text-subtle">
           {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
