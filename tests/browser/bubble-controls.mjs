@@ -78,6 +78,14 @@ await withBubbleFixture(async ({ page }) => {
   await page.waitForFunction(() => Boolean(document.fullscreenElement));
   assert.equal(await page.getByRole("button", { name: "Sair da tela cheia" }).getAttribute("aria-pressed"), "true");
   assert(await svg.evaluate((el) => el.clientHeight > 600), "fullscreen canvas uses the available height");
+  await page.locator(".bubble-node").nth(1).hover();
+  await page.keyboard.down("Space");
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  assert.equal(await page.getByRole("link", { name: "Ver no X", exact: true }).count(), 0, "Space-click pans instead of selecting while a toolbar button has focus");
+  assert(await page.evaluate(() => Boolean(document.fullscreenElement)), "Space over the canvas does not activate the focused fullscreen toggle");
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el.parentElement).touchAction), "none", "fullscreen touch gestures belong to the canvas");
   const fullBounds = await svg.boundingBox();
   const fullPoint = { x: Math.round(fullBounds.x + fullBounds.width * 0.6), y: Math.round(fullBounds.y + fullBounds.height * 0.4) };
   const fullAnchor = await svg.evaluate((el, p) => new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM().inverse()).toJSON(), fullPoint);

@@ -234,7 +234,7 @@ export function Bubble({
     const onKeyDown = (e: KeyboardEvent): void => {
       const svg = svgRef.current;
       if (e.code !== "Space" || !svg || (!svg.matches(":hover") && document.activeElement !== svg)) return;
-      if (e.target instanceof Element && e.target.closest("input, textarea, select, button, a, [contenteditable]")) return;
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
       e.preventDefault();
       isSpacePressed.current = true;
     };
