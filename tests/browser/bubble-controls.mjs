@@ -69,6 +69,7 @@ await withBubbleFixture(async ({ page }) => {
   await svg.dispatchEvent("pointerdown", { pointerId: 11, pointerType: "touch", clientX: point.x, clientY: point.y, button: 0 });
   await svg.dispatchEvent("pointerdown", { pointerId: 12, pointerType: "touch", clientX: point.x + 100, clientY: point.y, button: 0 });
   await svg.dispatchEvent("pointermove", { pointerId: 12, pointerType: "touch", clientX: point.x + 150, clientY: point.y, buttons: 1 });
+  await page.waitForFunction(() => new DOMMatrix(getComputedStyle(document.querySelector(".bubble-zoom")).transform).a > 1);
   assert((await matrix()).k > 1, "two-pointer pinch still zooms");
   await svg.dispatchEvent("pointercancel", { pointerId: 11 });
   await svg.dispatchEvent("pointercancel", { pointerId: 12 });
