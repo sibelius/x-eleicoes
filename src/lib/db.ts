@@ -37,29 +37,60 @@ function turso(): Engine {
   });
 }
 
+const QUERY_TIMEOUT_MS = 15_000; // queries take well under a second; this only catches dead sockets
+class QueryTimeout extends Error {
+  constructor() {
+    super(`[db] no answer from Postgres in ${QUERY_TIMEOUT_MS / 1000}s; pool replaced`);
+  }
+}
+const isRead = (text: string) => /^\s*(SELECT|WITH)\b/i.test(text) && !/\b(INSERT|UPDATE|DELETE)\b/i.test(text);
+
 function pg(): Engine {
   return (g.engines!.pg ??= (() => {
-    if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
-    const sql = postgres(process.env.DATABASE_URL, {
-      prepare: false, // required by the transaction pooler
-      max: 5,
-      idle_timeout: 20,
-      connect_timeout: 10,
-      // COUNT/SUM/ids (int8, numeric) as plain numbers, like SQLite.
-      types: { bigint: { to: 20, from: [20, 1700], serialize: (x: number) => String(x), parse: (x: string) => Number(x) } },
-    });
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("DATABASE_URL is not set");
+    const connect = () =>
+      postgres(url, {
+        prepare: false, // required by the transaction pooler
+        max: 5,
+        idle_timeout: 20,
+        connect_timeout: 10,
+        max_lifetime: 5 * 60,
+        // COUNT/SUM/ids (int8, numeric) as plain numbers, like SQLite.
+        types: { bigint: { to: 20, from: [20, 1700], serialize: (x: number) => String(x), parse: (x: string) => Number(x) } },
+      });
+    let sql = connect();
+    // A socket that died while Vercel froze the instance never answers, and postgres.js waits on it
+    // forever: every request on that instance hung until the 300s function timeout. Give up instead,
+    // throw the pool away and start a fresh one.
+    const guard = <T,>(run: (s: ReturnType<typeof connect>) => Promise<T>): Promise<T> => {
+      const s = sql;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          if (sql === s) sql = connect();
+          s.end({ timeout: 0 }).catch(() => {});
+          reject(new QueryTimeout());
+        }, QUERY_TIMEOUT_MS);
+      });
+      return Promise.race([run(s), timeout]).finally(() => clearTimeout(timer));
+    };
     return {
       db: pgDb({
         query: async (text, params) => {
-          const r = await sql.unsafe(text, params as never[]);
+          const once = () => guard((s) => s.unsafe(text, params as never[]));
+          // Reads are safe to send again on the fresh pool.
+          const r = await once().catch((e) => (e instanceof QueryTimeout && isRead(text) ? once() : Promise.reject(e)));
           return { rows: r as unknown as Record<string, unknown>[], count: r.count };
         },
         transaction: (fn) =>
-          sql.begin((tx) =>
-            fn(async (text, params) => {
-              const r = await tx.unsafe(text, params as never[]);
-              return { rows: r as unknown as Record<string, unknown>[], count: r.count };
-            }),
+          guard((s) =>
+            s.begin((tx) =>
+              fn(async (text, params) => {
+                const r = await tx.unsafe(text, params as never[]);
+                return { rows: r as unknown as Record<string, unknown>[], count: r.count };
+              }),
+            ),
           ) as never,
       }),
       schema: PG_TABLES, // indexes: pnpm db:indexes
