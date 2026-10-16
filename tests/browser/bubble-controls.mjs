@@ -76,7 +76,7 @@ await withBubbleFixture(async ({ page }) => {
   assert.equal(await svg.evaluate((el) => getComputedStyle(el).cursor), "grab", "pointer cancellation clears dragging");
   await reset();
   await page.getByRole("button", { name: "Tela cheia", exact: true }).click();
-  await page.waitForFunction(() => Boolean(document.fullscreenElement));
+  await page.getByRole("dialog", { name: "Sua bolha", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Sair da tela cheia" }).getAttribute("aria-pressed"), "true");
   assert(await svg.evaluate((el) => el.clientHeight > 600), "fullscreen canvas uses the available height");
   await page.locator(".bubble-node").nth(1).hover();
@@ -85,8 +85,10 @@ await withBubbleFixture(async ({ page }) => {
   await page.mouse.up();
   await page.keyboard.up("Space");
   assert.equal(await page.getByRole("link", { name: "Ver no X", exact: true }).count(), 0, "Space-click pans instead of selecting while a toolbar button has focus");
-  assert(await page.evaluate(() => Boolean(document.fullscreenElement)), "Space over the canvas does not activate the focused fullscreen toggle");
-  assert.equal(await svg.evaluate((el) => getComputedStyle(el.parentElement).touchAction), "none", "fullscreen touch gestures belong to the canvas");
+  assert.equal(await page.getByRole("dialog", { name: "Sua bolha", exact: true }).count(), 1, "Space over the canvas does not activate the focused fullscreen toggle");
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).touchAction), "none", "fullscreen touch gestures belong to the canvas");
+  assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden", "fullscreen locks page scrolling");
+  assert.equal(await page.getByRole("textbox", { name: "Outside input", includeHidden: true }).evaluate((el) => el.inert), true, "background controls are inert");
   const fullBounds = await svg.boundingBox();
   const fullPoint = { x: Math.round(fullBounds.x + fullBounds.width * 0.6), y: Math.round(fullBounds.y + fullBounds.height * 0.4) };
   const fullAnchor = await svg.evaluate((el, p) => new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM().inverse()).toJSON(), fullPoint);
@@ -96,14 +98,19 @@ await withBubbleFixture(async ({ page }) => {
   const fullZoom = await matrix();
   assert(Math.abs(fullZoom.x - fullAnchor.x * (1 - fullZoom.k)) < 0.1, "letterboxed fullscreen keeps the cursor anchor");
   await page.getByRole("button", { name: "Sair da tela cheia" }).click();
-  await page.waitForFunction(() => !document.fullscreenElement);
+  await page.getByRole("dialog", { name: "Sua bolha", exact: true }).waitFor({ state: "detached" });
   assert.equal(await page.getByRole("button", { name: "Tela cheia", exact: true }).evaluate((el) => document.activeElement === el), true, "fullscreen restores focus");
 
-  await page.evaluate(() => { document.querySelector("[data-tour=bubble]").requestFullscreen = async () => { throw new Error("Denied for test"); }; });
+  await page.evaluate(() => { document.querySelector("[data-tour=bubble]").requestFullscreen = undefined; });
   await page.getByRole("button", { name: "Tela cheia", exact: true }).click();
-  const fullscreenAlert = page.getByRole("alert").filter({ hasText: "Não foi possível" });
-  await fullscreenAlert.waitFor();
-  assert.match(await fullscreenAlert.innerText(), /Não foi possível/);
+  await page.getByRole("dialog", { name: "Sua bolha", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Aumentar zoom" }).focus();
+  await page.keyboard.press("Tab");
+  assert.equal(await page.getByRole("button", { name: "Todos", exact: true }).evaluate((el) => document.activeElement === el), true, "Tab stays within the fullscreen overlay");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Sua bolha", exact: true }).waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.body.style.overflow), "", "Escape restores page scrolling without native fullscreen support");
+  assert.equal(await page.getByRole("textbox", { name: "Outside input" }).evaluate((el) => el.inert), false, "background interaction is restored");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await reset();
@@ -111,5 +118,5 @@ await withBubbleFixture(async ({ page }) => {
   assert.equal(await svg.evaluate((el) => getComputedStyle(el).touchAction), "pan-y", "touch can scroll the page at rest");
   await page.getByRole("button", { name: "Aumentar zoom" }).click();
   assert.equal(await svg.evaluate((el) => getComputedStyle(el).touchAction), "none", "zoomed touch can pan the canvas");
-  console.log("Bubble controls: wheel anchors and limits, Space/middle/Shift pan, keyboard, fullscreen/error/focus, and mobile checks passed.");
+  console.log("Bubble controls: wheel anchors and limits, Space/middle/Shift pan, keyboard, fullscreen/focus/scroll restoration, and mobile checks passed.");
 });

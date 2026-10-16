@@ -69,8 +69,6 @@ export function Bubble({
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const fullscreenButton = useRef<HTMLButtonElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const [space, setSpace] = useState(WIDE);
   const [layout, setLayout] = useState<SimNode[] | null>(null);
   const box = useMemo(() => {
@@ -86,6 +84,9 @@ export function Bubble({
     return { x: (x0 + x1 - w) / 2, y: (y0 + y1 - h) / 2, w, h };
   }, [layout, space]);
   const [selected, setSelected] = useState<NetworkNode | null>(null);
+  // Mouse hover: a small card next to the cursor, so people are easy to tell apart without clicking.
+  const [hover, setHover] = useState<{ n: NetworkNode; x: number; y: number; flip: boolean } | null>(null);
+  const [full, setFull] = useState(false);
   const router = useRouter();
   // Who's looking at this bubble right now, and which members are online.
   const live = useLive(me?.id ?? "_all");
@@ -103,6 +104,45 @@ export function Bubble({
         ["members", "Já no app"],
       ] as const);
 
+  // Keep the fullscreen overlay usable on browsers without element fullscreen.
+  useEffect(() => {
+    if (!full || !wrap.current) return;
+    const overlay = wrap.current;
+    const trigger = fullscreenButton.current;
+    const overflow = document.body.style.overflow;
+    const inertElements = new Map<HTMLElement, boolean>();
+    const isolate = (element: HTMLElement): void => {
+      const parent = element.parentElement;
+      if (!parent) return;
+      for (const sibling of parent.children) {
+        if (sibling === element || !(sibling instanceof HTMLElement)) continue;
+        inertElements.set(sibling, sibling.inert);
+        sibling.inert = true;
+      }
+      if (parent !== document.body) isolate(parent);
+    };
+    isolate(overlay);
+    document.body.style.overflow = "hidden";
+    trigger?.focus({ preventScroll: true });
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") { event.preventDefault(); setFull(false); return; }
+      if (event.key !== "Tab") return;
+      const controls = [...overlay.querySelectorAll<HTMLElement | SVGElement>('button, a[href], [tabindex="0"]')]
+        .filter((element) => element.getClientRects().length > 0 && !element.hasAttribute("disabled"));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      for (const [element, wasInert] of inertElements) element.inert = wasInert;
+      window.removeEventListener("keydown", onKey);
+      trigger?.focus({ preventScroll: true });
+    };
+  }, [full]);
+
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
@@ -110,36 +150,6 @@ export function Bubble({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  useEffect(() => {
-    const state = { wasActive: false };
-    const onFullscreenChange = (): void => {
-      const isActive = document.fullscreenElement === wrap.current;
-      setIsFullscreen(isActive);
-      if (state.wasActive && !isActive) fullscreenButton.current?.focus({ preventScroll: true });
-      state.wasActive = isActive;
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
-
-  async function toggleFullscreen(): Promise<void> {
-    setFullscreenError(null);
-    try {
-      if (document.fullscreenElement === wrap.current) {
-        await document.exitFullscreen();
-        return;
-      }
-      if (!wrap.current?.requestFullscreen) {
-        setFullscreenError("Este navegador não oferece tela cheia.");
-        return;
-      }
-      await wrap.current.requestFullscreen();
-    } catch (error) {
-      console.error("[bubble] fullscreen", error);
-      setFullscreenError("Não foi possível ativar a tela cheia. Tente novamente.");
-    }
-  }
 
   const visible = useMemo(
     () =>
@@ -197,6 +207,7 @@ export function Bubble({
 
   /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
   const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
+    setHover(null);
     setView((v) => {
       const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
       if (k === v.k) return v;
@@ -259,6 +270,7 @@ export function Bubble({
 
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>): void {
     if (e.button !== 0 && e.button !== 1) return;
+    setHover(null);
     e.currentTarget.focus({ preventScroll: true });
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) gesture.current = { travel: 0, moved: false, dist: 0 };
@@ -325,13 +337,21 @@ export function Bubble({
     // Second tap on a member opens their bubble.
     if (selected?.id === n.id && n.member && n.username) return router.push(sharePath(n.username));
     setSelected(n);
+    setHover(null);
     // Focus: zoom onto the dot (small dots zoom more).
     const k = Math.min(4, Math.max(1.8, 50 / d.r));
     setView({ k, x: cx - k * d.x!, y: cy - k * d.y! });
   }
 
   return (
-    <div ref={wrap} data-tour="bubble" className="bubble-card rounded-2xl border border-line bg-card p-4">
+    <div
+      ref={wrap}
+      data-tour="bubble"
+      role={full ? "dialog" : undefined}
+      aria-modal={full || undefined}
+      aria-label={full ? title : undefined}
+      className={full ? "fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg p-3" : "rounded-2xl border border-line bg-card p-4"}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -346,33 +366,34 @@ export function Bubble({
             </a>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div data-tour="bubble-filters" className="flex gap-1 text-sm">
-            {filters.map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => {
-                  setFilter(k);
-                  reset();
-                }}
-                className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <div data-tour="bubble-filters" className="flex flex-wrap gap-1 text-sm">
+          {filters.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => {
+                setFilter(k);
+                reset();
+              }}
+              className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
+            >
+              {label}
+            </button>
+          ))}
           <button
             ref={fullscreenButton}
             type="button"
-            onClick={() => void toggleFullscreen()}
-            aria-pressed={isFullscreen}
-            className="min-h-9 rounded-full border border-line px-3 py-1 text-sm hover:bg-muted"
+            aria-pressed={full}
+            onClick={() => {
+              setFull((f) => !f);
+              reset();
+            }}
+            className="rounded-full bg-muted px-3 py-1"
+            aria-label={full ? "Sair da tela cheia" : "Tela cheia"}
           >
-            {isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+            {full ? "✕ Fechar" : "⛶ Tela cheia"}
           </button>
         </div>
       </div>
-      {fullscreenError && <p role="alert" className="mb-2 text-sm text-[var(--red)]">{fullscreenError}</p>}
       {live && live.watching > 0 && (
         <div className="mb-2">
           <LiveWatchers live={live} own={own} />
@@ -385,13 +406,13 @@ export function Bubble({
         {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
-      <div className="bubble-canvas relative">
+      <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
         <svg
           ref={svgRef}
           viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
-          className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+          className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
-          style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
+          style={{ touchAction: view.k > 1 || full ? "none" : "pan-y" }}
           role="group"
           aria-label={title}
           tabIndex={0}
@@ -456,6 +477,13 @@ export function Bubble({
                     opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
                   }}
                   onClick={() => n && pick(d)}
+                  onPointerEnter={(e) => {
+                    if (!n || e.pointerType !== "mouse" || pointers.current.size) return;
+                    const rect = e.currentTarget.ownerSVGElement!.parentElement!.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    setHover({ n, x, y: e.clientY - rect.top, flip: x > rect.width - 260 });
+                  }}
+                  onPointerLeave={() => setHover((h) => (h?.n.id === n?.id ? null : h))}
                   className={`bubble-node ${n ? "cursor-pointer" : ""}`}
                 >
                   <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
@@ -491,13 +519,24 @@ export function Bubble({
                         {n ? initials(n.name) : centerLabel}
                       </text>
                     )}
-                    <title>{n ? `${n.name ?? n.id}${n.username ? ` (@${n.username})` : ""}` : "Você"}</title>
+                    {!n && <title>Você</title>}
                   </g>
                 </g>
               );
             })}
           </g>
         </svg>
+        {hover && !dragging && hover.n.id !== selected?.id && (
+          <HoverCard
+            n={hover.n}
+            me={me}
+            online={online.has(hover.n.id)}
+            style={{
+              top: hover.y + 14,
+              ...(hover.flip ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 }),
+            }}
+          />
+        )}
         <div className="absolute bottom-1 left-1 grid grid-cols-3 gap-0.5">
           <span />
           <ZoomButton label="Mover para cima" onClick={() => pan(0, -1)}>
@@ -540,7 +579,7 @@ export function Bubble({
       {selected && (
         <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
       )}
-      {tally && (
+      {tally && !full && (
         <BubbleVideo me={me} nodes={nodes} tally={tally} title={me ? `A bolha de @${me.username}` : title} shareUrl={shareUrl} />
       )}
     </div>
@@ -570,6 +609,66 @@ function Legend({ c, label }: { c: string; label: string }) {
   );
 }
 
+function relation(n: NetworkNode, me: Me | null) {
+  if (!me) return "";
+  return [
+    n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null,
+    n.invite ? "Convite" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function status(n: NetworkNode) {
+  return !n.member ? "Ainda não entrou no app" : n.vote ? `Time ${SIDE[n.vote]}` : "Entrou mas ainda não escolheu";
+}
+
+function HoverCard({
+  n,
+  me,
+  online,
+  style,
+}: {
+  n: NetworkNode;
+  me: Me | null;
+  online: boolean;
+  style: React.CSSProperties;
+}) {
+  const rel = relation(n, me);
+  return (
+    <div
+      className="pointer-events-none absolute z-10 flex w-60 items-center gap-3 rounded-xl border border-line bg-card p-2.5 shadow-lg"
+      style={style}
+    >
+      {n.avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element -- remote X avatar, already in the SVG
+        <img
+          src={n.avatar}
+          alt=""
+          className="h-11 w-11 shrink-0 rounded-full border-2"
+          style={{ borderColor: color(n, me) }}
+        />
+      ) : (
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-muted text-sm font-bold"
+          style={{ borderColor: color(n, me) }}
+        >
+          {initials(n.name)}
+        </span>
+      )}
+      <div className="min-w-0 text-sm">
+        <div className="truncate font-semibold">{n.name ?? "Conta do X"}</div>
+        {n.username && <div className="truncate text-subtle">@{n.username}</div>}
+        <div className="truncate text-xs text-subtle">
+          {online && <span className="font-semibold text-[var(--accent)]">● Online · </span>}
+          {status(n)}
+          {rel && ` · ${rel}`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NodeCard({
   n,
   me,
@@ -583,19 +682,7 @@ function NodeCard({
   readOnly: boolean;
   onClose: () => void;
 }) {
-  const rel = me
-    ? [
-        n.following && n.follower ? "Mútuo" : n.following ? "Você segue" : n.follower ? "Segue você" : null,
-        n.invite ? "Convite" : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
-  const status = !n.member
-    ? "Ainda não entrou no app"
-    : n.vote
-      ? `Time ${SIDE[n.vote]}`
-      : "Entrou mas ainda não escolheu";
+  const rel = relation(n, me);
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-3">
       <div className="min-w-0">
@@ -603,7 +690,7 @@ function NodeCard({
           {n.name ?? "Conta do X"} {n.username && <span className="font-normal text-subtle">@{n.username}</span>}
         </div>
         <div className="text-sm text-subtle">
-          {status} {rel && `· ${rel}`}
+          {status(n)} {rel && `· ${rel}`}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 text-sm">
