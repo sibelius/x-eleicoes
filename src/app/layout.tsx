@@ -6,6 +6,9 @@ import { LiveBar } from "@/components/LiveBar";
 import { ShareTracker } from "@/components/ShareTracker";
 import { UtmBeacon } from "@/components/UtmBeacon";
 import { Inbox } from "@/components/play/Inbox";
+import { PushPrompt } from "@/components/PushPrompt";
+import { FeedbackButton } from "@/components/FeedbackButton";
+import { pushPublicKey } from "@/lib/push";
 import { SITE } from "@/lib/views-shared";
 import "./globals.css";
 
@@ -38,9 +41,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             💚 Apoie com Pix
           </a>{" "}
           ·{" "}
-          <a href="/apoie" className="underline">
+          <a href="/anuncie" className="underline">
             Anuncie aqui
           </a>{" "}
+          ·{" "}
+          <FeedbackButton className="font-semibold underline" />{" "}
           ·{" "}
           <a href="/privacidade" className="underline">
             Privacidade e termos
@@ -55,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ShareTracker />
         <UtmBeacon />
         <Inbox />
+        {pushPublicKey() && <PushPrompt publicKey={pushPublicKey()!} />}
       </body>
     </html>
   );

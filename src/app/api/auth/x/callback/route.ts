@@ -1,9 +1,11 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { apifyEnabled, importFollowsFromApify } from "@/lib/apify";
 import { db } from "@/lib/db";
+import { setPlaceFromX } from "@/lib/places";
 import { notifyInviteJoined, notifyNetworkJoined, notifyRacePassed } from "@/lib/push";
 import { passedBy } from "@/lib/race";
 import { appUrl, createSessionToken, sessionCookie, verify } from "@/lib/session";
+import { parseUf } from "@/lib/uf";
 import { UTM_COOKIE, recordUtm, rememberedUtm } from "@/lib/utm";
 import { exchangeCode, fetchFollowsEnabled, getMe, importFollowsFromApi } from "@/lib/x";
 import { accessToken } from "@/lib/x-oauth1";
@@ -15,7 +17,7 @@ type OAuthCookie =
   | { v: 1; token: string; secret: string; ref?: string | null }
   | { v: 2; state: string; verifier: string; ref?: string | null };
 
-type Identity = { id: string; username: string; name: string; avatar: string | null };
+type Identity = { id: string; username: string; name: string; avatar: string | null; location?: string | null };
 
 export async function GET(req: NextRequest) {
   const origin = appUrl(req);
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
       if (!code || params.get("state") !== oauth.state) return fail(`bad state/code ${params.get("error") ?? ""}`);
       const { access_token } = await exchangeCode(code, oauth.verifier, `${origin}/api/auth/x/callback`);
       const me = await getMe(access_token);
-      who = { id: me.id, username: me.username, name: me.name, avatar: me.profile_image_url ?? null };
+      who = { id: me.id, username: me.username, name: me.name, avatar: me.profile_image_url ?? null, location: me.location ?? null };
       if (fetchFollowsEnabled() && !apifyEnabled()) await importFollowsFromApi(client, access_token, me.id);
     }
 
@@ -60,6 +62,11 @@ export async function GET(req: NextRequest) {
               avatar = COALESCE(excluded.avatar, users.avatar)`,
       args: [who.id, who.username, who.name, who.avatar, ref, Date.now()],
     });
+    // State from the X profile location (OAuth 2 only), unless the member picked one; shown only in aggregates.
+    if (who.location !== undefined) {
+      const uf = parseUf(who.location);
+      after(() => setPlaceFromX(who.id, uf).catch((e) => console.error("[place]", e)));
+    }
     // Signed up after arriving through a tagged link: credit that link (first touch).
     const utm = isNew ? rememberedUtm(req) : null;
     if (utm) after(() => recordUtm("signup", `u:${who.id}`, utm).catch((e) => console.error("[utm] signup", e)));

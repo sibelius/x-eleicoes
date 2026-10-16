@@ -136,3 +136,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .live-pop, .live-in { animation: none; }
 }
+
+/* Roleta: the die tumbles while drawing. */
+@keyframes roleta-spin {
+  0% { transform: rotate(0) scale(1); }
+  50% { transform: rotate(200deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.roleta-spin {
+  animation: roleta-spin 0.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .roleta-spin { animation: none; }
+}

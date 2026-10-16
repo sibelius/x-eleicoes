@@ -1,6 +1,8 @@
+import type { ShareVia } from "./share-links";
+
 // Tells the server a bubble was shared, so its owner can be notified. `href` is an x.com post intent
 // (its `url` param is the shared page) or the shared page itself.
-export function trackShare(href: string, via: "x" | "native" = "x") {
+export function trackShare(href: string, via: ShareVia = "x") {
   let url = href;
   try {
     const u = new URL(href, location.origin);

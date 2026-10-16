@@ -197,6 +197,78 @@ export const SQLITE_SCHEMA = [
     delivered INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS push_log_at ON push_log (at)`,
+  // Pix donations: claimed by a donor ("Já doei", pending) or added by the admin; only confirmed ones count.
+  // amount in cents; uid set when a signed-in member claimed it; public = show on the supporter wall.
+  `CREATE TABLE IF NOT EXISTS donations (
+    id INTEGER PRIMARY KEY,
+    at INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    uid TEXT,
+    name TEXT,
+    public INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    note TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS donations_at ON donations (at)`,
+  // Small admin-editable settings (e.g. the monthly donation goal).
+  `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`,
+  // The daily question: one play per player (u:<uid> or a visitor cookie) per day; uid set for members (streaks).
+  `CREATE TABLE IF NOT EXISTS daily_plays (
+    day TEXT NOT NULL,
+    player TEXT NOT NULL,
+    uid TEXT,
+    target TEXT NOT NULL,
+    guess INTEGER NOT NULL,
+    actual INTEGER NOT NULL,
+    score INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (day, player)
+  )`,
+  `CREATE INDEX IF NOT EXISTS daily_plays_uid ON daily_plays (uid, day)`,
+  // A member's state (UF), from their X profile location or picked by them; only shown in aggregates.
+  `CREATE TABLE IF NOT EXISTS user_places (
+    uid TEXT PRIMARY KEY,
+    uf TEXT NOT NULL,
+    source TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`,
+  // Topics beyond Red × Green (football clubs, BBB…), each with two sides; hidden until status = 'live'.
+  `CREATE TABLE IF NOT EXISTS topics (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    question TEXT NOT NULL,
+    a_label TEXT NOT NULL,
+    a_color TEXT NOT NULL,
+    b_label TEXT NOT NULL,
+    b_color TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at INTEGER NOT NULL
+  )`,
+  // A member's side on a topic ('a' or 'b'); the follow graph is shared with Red × Green.
+  `CREATE TABLE IF NOT EXISTS topic_votes (
+    topic TEXT NOT NULL,
+    uid TEXT NOT NULL,
+    side TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (topic, uid)
+  )`,
+  `CREATE INDEX IF NOT EXISTS topic_votes_uid ON topic_votes (uid)`,
+  // Feedback sent from the site (ideas, bugs…) to the admin; sender = u:<uid> or a visitor cookie.
+  `CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    at INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    uid TEXT,
+    kind TEXT NOT NULL,
+    body TEXT NOT NULL,
+    page TEXT NOT NULL,
+    contact TEXT,
+    status TEXT NOT NULL DEFAULT 'new'
+  )`,
+  `CREATE INDEX IF NOT EXISTS feedback_at ON feedback (at)`,
 ];
 
 /** Postgres: same tables (BIGINT for ms timestamps and ids), without the SQLite-only backfill. */

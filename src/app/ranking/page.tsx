@@ -9,6 +9,7 @@ import { pct, sharePath } from "@/lib/links";
 import { getRankings, type Me, type Ranked } from "@/lib/network";
 import { getRaceBoard } from "@/lib/race";
 import { RaceBoard } from "@/components/play/RaceBoard";
+import { DailyBoards } from "@/components/play/DailyBoards";
 
 export const metadata: Metadata = {
   title: "Ranking das bolhas · Minha Bolha",
@@ -25,7 +26,8 @@ export default function RankingPage() {
       <p className="mt-1 text-subtle">Quem vive na bolha mais fechada? E quem está no meio do fogo cruzado?</p>
       <p className="mt-1 text-sm">
         <Link href="/virada" className="underline">🔁 Quem virou</Link> ·{" "}
-        <Link href="/ao-vivo" className="underline">🔴 Ao vivo 🟢</Link>
+        <Link href="/ao-vivo" className="underline">🔴 Ao vivo 🟢</Link> ·{" "}
+        <Link href="/hoje" className="underline">🎯 Pergunta do dia</Link>
       </p>
       <div className="mt-4">
         <SupportStrip placement="ranking" />
@@ -43,6 +45,7 @@ async function Boards() {
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
       <RaceBoard racers={race.racers} end={race.end} now={race.now} />
+      <DailyBoards />
       <Board title="🔒 Mais fechadas no Vermelho" rows={r.closedRed} stat={(m) => `${pct(m.tally.red, m.tally.total)}% Vermelho`} color="var(--red)" />
       <Board
         title="🔒 Mais fechadas no Verde"

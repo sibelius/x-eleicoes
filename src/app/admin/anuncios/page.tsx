@@ -6,15 +6,8 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { requireAdmin } from "@/lib/admin";
 import { ADS } from "@/lib/ads";
 import { getAdStats } from "@/lib/stats";
-
-const PLACEMENT: Record<string, string> = {
-  home: "Início",
-  app: "Minha bolha",
-  bubble: "Bolha de alguém",
-  directory: "Todas as bolhas",
-  ranking: "Ranking",
-  compare: "Comparar",
-};
+import { placementLabel, reportPath } from "@/lib/sponsors";
+import { CopyLink } from "@/components/admin/CopyLink";
 
 export default function AdsPage() {
   return (
@@ -59,7 +52,7 @@ async function Ads() {
 
       <Card title="Por anúncio" className="mt-4">
         <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="text-left text-xs text-subtle">
               <tr>
                 <th className="py-1.5 font-normal">Anúncio</th>
@@ -69,6 +62,7 @@ async function Ads() {
                 <th className="py-1.5 text-right font-normal">Quem clicou</th>
                 <th className="py-1.5 text-right font-normal">CTR</th>
                 <th className="py-1.5 pl-4 font-normal">Impressões, 30 dias</th>
+                <th className="py-1.5 pl-4 font-normal">Relatório do anunciante</th>
               </tr>
             </thead>
             <tbody>
@@ -89,6 +83,9 @@ async function Ads() {
                     <td className="py-2 text-right font-semibold tabular-nums">{ctr(a.clicks, a.views)}</td>
                     <td className="py-2 pl-4">
                       <Spark values={s.daily[a.ad].map((d) => d.views)} />
+                    </td>
+                    <td className="py-2 pl-4">
+                      <CopyLink path={reportPath(a.ad)} label="Copiar link do relatório" />
                     </td>
                   </tr>
                 );
@@ -127,7 +124,7 @@ async function Ads() {
                   <th className="py-1.5 font-normal">Anúncio</th>
                   {s.placements.map((p) => (
                     <th key={p} className="py-1.5 text-center font-normal">
-                      {PLACEMENT[p] ?? p}
+                      {placementLabel(p)}
                     </th>
                   ))}
                 </tr>

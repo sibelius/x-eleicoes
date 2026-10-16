@@ -1,7 +1,7 @@
 "use client";
 
 import { withUtm } from "@/lib/links";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import { pixPayload } from "@/lib/pix";
 
@@ -13,27 +13,135 @@ export const PIX = {
 };
 const PRESETS = [5, 10, 25, 50, 100];
 
-/** We can't see a static Pix arrive, so after copying/scanning we offer "I just donated" to post on X. */
-function donatedTweetUrl(amount: number | null) {
+/** Posting "I just donated" on X. The link renders with the production origin (same on server and client) and switches to this one on click. */
+function donatedTweetUrl(amount: number | null, origin = "https://x-eleicoes.vercel.app") {
   const text = `Acabei de doar${amount ? ` R$ ${amount.toFixed(2).replace(".", ",").replace(",00", "")}` : ""} para o projeto Minha Bolha 💚 Apoie também e veja de que lado está a sua rede do X: Vermelho ou Verde?`;
-  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${typeof location === "undefined" ? "https://x-eleicoes.vercel.app" : location.origin}/apoie`, "donate"))}`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(`${origin}/apoie`, "donate"))}`;
 }
 
-function SharedDonation({ amount, className = "" }: { amount: number | null; className?: string }) {
+function SharedDonation({ amount, className = "", children }: { amount: number | null; className?: string; children?: ReactNode }) {
   return (
     <a
       href={donatedTweetUrl(amount)}
+      onClick={(e) => (e.currentTarget.href = donatedTweetUrl(amount, location.origin))}
       target="_blank"
       rel="noreferrer"
       className={`inline-block rounded-full border border-line px-4 py-1.5 text-sm ${className}`}
     >
-      💚 Já doei, compartilhar no X
+      {children ?? "💚 Já doei, compartilhar no X"}
     </a>
   );
 }
 
+const reais = (v: number) => v.toFixed(2).replace(".", ",").replace(",00", "");
+
+/**
+ * "Já doei": the donor tells us amount, display name and whether to show it on the supporter wall.
+ * It stays pending until the Pix shows up on the statement; posting on X is offered either way.
+ */
+export function ClaimDonation({ amount, compact = false }: { amount: number | null; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [name, setName] = useState("");
+  const [pub, setPub] = useState(false); // opt-in: the wall shows names
+  const [state, setState] = useState<"idle" | "sending" | "done">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function start() {
+    setValue(amount ? reais(amount) : "");
+    setOpen(true);
+    if (!name) {
+      const r = await fetch("/api/donation").then((x) => x.json()).catch(() => null);
+      if (r?.handle) setName((n) => n || `@${r.handle}`);
+    }
+  }
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setState("sending");
+    const r = await fetch("/api/donation", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount: value, name, public: pub }),
+    })
+      .then((x) => x.json())
+      .catch(() => ({ ok: false, error: "Sem conexão. Tente de novo." }));
+    if (r.ok) setState("done");
+    else {
+      setError(r.error ?? "Não deu certo. Tente de novo.");
+      setState("idle");
+    }
+  }
+
+  const shown = Number(value.replace(/\./g, "").replace(",", ".")) || amount;
+  if (state === "done") {
+    return (
+      <div className={`rounded-xl border border-line bg-muted p-3 text-sm ${compact ? "mt-2" : "mt-3"}`}>
+        <b>Obrigado! 💚</b> Vamos conferir no extrato e, confirmado, seu apoio entra na meta do mês
+        {pub ? " e no mural de apoiadores" : ""}.
+        <div className="mt-2">
+          <SharedDonation amount={shown}>💚 Contar no X</SharedDonation>
+        </div>
+      </div>
+    );
+  }
+  if (!open) {
+    return (
+      <div className={`flex flex-wrap items-center gap-2 ${compact ? "mt-2" : "mt-3"}`}>
+        <button onClick={start} className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold">
+          💚 Já doei
+        </button>
+        <SharedDonation amount={amount} className="border-0 px-1 text-xs text-subtle underline">
+          compartilhar no X
+        </SharedDonation>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={send} className={`grid gap-2 rounded-xl border border-line p-3 text-sm ${compact ? "mt-2" : "mt-3"}`}>
+      <div className="flex flex-wrap gap-2">
+        <label className="flex items-center gap-1 rounded-lg border border-line px-2">
+          R$
+          <input
+            required
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="valor"
+            aria-label="Valor doado"
+            className="w-20 bg-transparent py-1.5 outline-none"
+          />
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={40}
+          placeholder="nome ou @ (opcional)"
+          aria-label="Nome no mural"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-2 py-1.5 outline-none"
+        />
+      </div>
+      <label className="flex items-center gap-2 text-subtle">
+        <input type="checkbox" checked={pub} onChange={(e) => setPub(e.target.checked)} />
+        mostrar meu nome no mural de apoiadores
+      </label>
+      {error && <p className="text-[var(--red)]">{error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <button disabled={state === "sending"} className="rounded-full bg-fg px-4 py-1.5 font-semibold text-bg disabled:opacity-60">
+          {state === "sending" ? "Enviando…" : "Avisar que doei"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="px-2 text-subtle underline">
+          cancelar
+        </button>
+      </div>
+      <p className="text-xs text-subtle">Conferimos no extrato antes de contar na meta. O valor de cada pessoa não aparece no mural.</p>
+    </form>
+  );
+}
+
 /** Compact Pix for every screen: R$ 10 preselected, small QR on desktop, copy button first on phones. */
-export function DonateMini() {
+export function DonateMini({ goal }: { goal?: ReactNode }) {
   const [amount, setAmount] = useState(10);
   const [qr, setQr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -47,30 +155,33 @@ export function DonateMini() {
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <div className="flex items-center gap-3">
-      {qr && <img src={qr} alt="QR code Pix" className="hidden h-24 w-24 shrink-0 rounded-lg bg-white p-1 sm:block" />}
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold">💚 Apoie com Pix</div>
-        <div className="mt-1 flex flex-wrap gap-1.5 text-sm">
-          {[5, 10, 25].map((v) => (
-            <button
-              key={v}
-              onClick={() => setAmount(v)}
-              className={`rounded-full px-3 py-1 ${amount === v ? "bg-fg text-bg" : "border border-line"}`}
-            >
-              R$ {v}
-            </button>
-          ))}
-          <a href="/apoie" className="self-center px-1 text-xs text-subtle underline">
-            outro valor
-          </a>
+    <div>
+      <div className="flex items-center gap-3">
+        {qr && <img src={qr} alt="QR code Pix" className="hidden h-24 w-24 shrink-0 rounded-lg bg-white p-1 sm:block" />}
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">💚 Apoie com Pix</div>
+          <div className="mt-1 flex flex-wrap gap-1.5 text-sm">
+            {[5, 10, 25].map((v) => (
+              <button
+                key={v}
+                onClick={() => setAmount(v)}
+                className={`rounded-full px-3 py-1 ${amount === v ? "bg-fg text-bg" : "border border-line"}`}
+              >
+                R$ {v}
+              </button>
+            ))}
+            <a href="/apoie" className="self-center px-1 text-xs text-subtle underline">
+              outro valor
+            </a>
+          </div>
+          <button onClick={copy} className="mt-2 rounded-full bg-[var(--green)] px-4 py-1.5 text-sm font-semibold text-white">
+            {copied ? "Copiado ✓ cole no app do banco" : `Copiar Pix de R$ ${amount}`}
+          </button>
+          {/* Desktop donors scan the QR without copying, so "Já doei" is always there. */}
+          <ClaimDonation amount={amount} compact />
         </div>
-        <button onClick={copy} className="mt-2 rounded-full bg-[var(--green)] px-4 py-1.5 text-sm font-semibold text-white">
-          {copied ? "Copiado ✓ cole no app do banco" : `Copiar Pix de R$ ${amount}`}
-        </button>
-        {/* Desktop donors scan the QR without copying, so this is always there. */}
-        <SharedDonation amount={amount} className="mt-2 ml-1 sm:ml-0" />
       </div>
+      {goal}
     </div>
   );
 }
@@ -139,8 +250,8 @@ export function Donate() {
           <button onClick={copy} className="mt-2 rounded-full bg-fg px-4 py-2 text-bg">
             {copied ? "Copiado ✓" : "Copiar Pix copia e cola"}
           </button>
-          <p className="mt-4 text-subtle">Doou? Conte pra sua rede, isso ajuda muito:</p>
-          <SharedDonation amount={amount} className="mt-2" />
+          <p className="mt-4 text-subtle">Doou? Avise aqui para entrar na meta do mês e no mural, e conte pra sua rede:</p>
+          <ClaimDonation amount={amount} />
         </div>
       </div>
     </div>

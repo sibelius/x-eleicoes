@@ -32,6 +32,12 @@ export async function POST(req: Request) {
       { sql: "DELETE FROM messages WHERE from_uid = ? OR to_uid = ?", args: [uid, uid] },
       { sql: "DELETE FROM ask_mutes WHERE uid = ?", args: [uid] },
       { sql: "DELETE FROM push_log WHERE uid = ?", args: [uid] },
+      // Donations stay in the totals, without the person.
+      { sql: "UPDATE donations SET uid = NULL, name = NULL, public = 0 WHERE uid = ?", args: [uid] },
+      { sql: "DELETE FROM daily_plays WHERE uid = ? OR player = ?", args: [uid, `u:${uid}`] },
+      { sql: "DELETE FROM user_places WHERE uid = ?", args: [uid] },
+      { sql: "DELETE FROM topic_votes WHERE uid = ?", args: [uid] },
+      { sql: "DELETE FROM feedback WHERE uid = ? OR sender = ?", args: [uid, `u:${uid}`] },
       { sql: "DELETE FROM profiles WHERE id = ?", args: [uid] },
       { sql: "DELETE FROM users WHERE id = ?", args: [uid] },
     ],

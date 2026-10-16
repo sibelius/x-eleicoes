@@ -2,20 +2,31 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { forceCollide, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { Me, NetworkNode, Tally } from "@/lib/network";
+import { NetworkMap, type CanvasProps } from "./BubbleMap";
+import { BubbleStates } from "./StatesMap";
 import { BubbleVideo } from "./BubbleVideo";
 import { LiveWatchers, useLive } from "./LiveWatchers";
+import { PanZoomControls, fitBox, usePanZoom } from "./pan-zoom";
 import { SIDE, comparePath, inviteTweetUrl, profileUrl, sharePath } from "@/lib/links";
+
+/** The two sides' names and colors (Red × Green by default; topics bring their own). */
+export type Sides = { red: { label: string; color?: string }; green: { label: string; color?: string } };
+const DEFAULT_SIDES: Sides = { red: { label: SIDE.red }, green: { label: SIDE.green } };
 
 // Layout space: landscape on wide containers, portrait on phones so dots stay big enough to read and tap.
 const WIDE = { w: 760, h: 520 };
 const NARROW = { w: 400, h: 620 };
-const HOME = { k: 1, x: 0, y: 0 };
-const MAX_ZOOM = 8;
 
 type SimNode = SimulationNodeDatum & { n: NetworkNode | null; r: number };
+type View = "bubble" | "map" | "states";
+const VIEWS: [View, string][] = [
+  ["bubble", "Bolha"],
+  ["map", "Mapa"],
+  ["states", "Estados"],
+];
 
 function color(n: NetworkNode | null, me: Me | null) {
   const vote = n ? n.vote : me?.vote;
@@ -51,6 +62,7 @@ export function Bubble({
   shareUrl,
   tally,
   own = false,
+  sides = DEFAULT_SIDES,
 }: {
   /** The owner in the middle; null for the combined bubble of everyone. */
   me: Me | null;
@@ -66,26 +78,19 @@ export function Bubble({
   tally?: Tally;
   /** The viewer is the owner ("N people watching your bubble"). */
   own?: boolean;
+  /** Side names and colors; colors override --red / --green inside the bubble. */
+  sides?: Sides;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState(WIDE);
-  const [layout, setLayout] = useState<SimNode[] | null>(null);
-  const box = useMemo(() => {
-    if (!layout) return { x: 0, y: 0, w: space.w, h: space.h };
-    const pad = 12;
-    const x0 = Math.min(...layout.map((d) => d.x! - d.r)) - pad;
-    const x1 = Math.max(...layout.map((d) => d.x! + d.r)) + pad;
-    const y0 = Math.min(...layout.map((d) => d.y! - d.r)) - pad - 28;
-    const y1 = Math.max(...layout.map((d) => d.y! + d.r)) + pad;
-    // Don't blow a handful of dots up to fill the card: keep at least ~half the layout space in view.
-    const w = Math.max(x1 - x0, space.w * 0.6);
-    const h = Math.max(y1 - y0, space.h * 0.45);
-    return { x: (x0 + x1 - w) / 2, y: (y0 + y1 - h) / 2, w, h };
-  }, [layout, space]);
+  // Three ways to look at the same people: the bubble, the follow network ("Mapa"), and by state.
+  const [view, setView] = useState<View>("bubble");
   const [selected, setSelected] = useState<NetworkNode | null>(null);
   // Mouse hover: a small card next to the cursor, so people are easy to tell apart without clicking.
   const [hover, setHover] = useState<{ n: NetworkNode; x: number; y: number; flip: boolean } | null>(null);
   const [full, setFull] = useState(false);
+  // Bumped to send the camera home (filter, fullscreen, tap on the background).
+  const [resetKey, setResetKey] = useState(0);
   const router = useRouter();
   // Who's looking at this bubble right now, and which members are online.
   const live = useLive(me?.id ?? "_all");
@@ -130,6 +135,190 @@ export function Bubble({
     [nodes, filter],
   );
 
+  function reset() {
+    setSelected(null);
+    setResetKey((k) => k + 1);
+  }
+
+  const canvas: CanvasProps = {
+    me,
+    nodes: visible,
+    space,
+    full,
+    title,
+    selected,
+    online,
+    resetKey,
+    onPick(n) {
+      // Second tap on a member opens their bubble.
+      if (selected?.id === n.id && n.member && n.username) {
+        router.push(sharePath(n.username));
+        return false;
+      }
+      setSelected(n);
+      setHover(null);
+      return true;
+    },
+    onHover(n, e) {
+      if (!n || !e) return setHover(null);
+      const rect = (e.currentTarget as SVGElement).ownerSVGElement!.parentElement!.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      setHover({ n, x, y: e.clientY - rect.top, flip: x > rect.width - 260 });
+    },
+    onReset: reset,
+  };
+
+  return (
+    <div
+      ref={wrap}
+      data-tour="bubble"
+      className={full ? "fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg p-3" : "rounded-2xl border border-line bg-card p-4"}
+      style={
+        {
+          ...(sides.red.color ? { "--red": sides.red.color } : {}),
+          ...(sides.green.color ? { "--green": sides.green.color } : {}),
+        } as React.CSSProperties
+      }
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          {shareUrl && (
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full bg-fg px-3 py-1 text-sm text-bg"
+            >
+              Compartilhar no X
+            </a>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          <div role="tablist" aria-label="Como ver a bolha" className="flex rounded-full border border-line p-0.5">
+            {VIEWS.map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={view === k}
+                onClick={() => {
+                  setView(k);
+                  setSelected(null);
+                  setHover(null);
+                }}
+                className={`rounded-full px-3 py-0.5 ${view === k ? "bg-fg text-bg" : ""}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFull((f) => !f);
+              reset();
+            }}
+            className="rounded-full bg-muted px-3 py-1"
+            aria-label={full ? "Sair da tela cheia" : "Tela cheia"}
+          >
+            {full ? "✕ Fechar" : "⛶ Tela cheia"}
+          </button>
+        </div>
+      </div>
+      {live && live.watching > 0 && (
+        <div className="mb-2">
+          <LiveWatchers live={live} own={own} />
+        </div>
+      )}
+      {view !== "states" && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
+            <Legend c="var(--red)" label={sides.red.label} />
+            <Legend c="var(--green)" label={sides.green.label} />
+            <Legend c="var(--none)" label="Ainda sem lado" />
+            {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
+            <span>
+              {view === "map"
+                ? "Linhas = quem segue quem aqui dentro · maior = mais conexões"
+                : "Bolinhas pequenas = ainda não entraram no app"}
+            </span>
+          </div>
+          <div data-tour="bubble-filters" className="flex flex-wrap gap-1 text-sm">
+            {filters.map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setFilter(k);
+                  reset();
+                }}
+                className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {view === "states" ? (
+        <BubbleStates uid={me?.id ?? null} labels={{ red: sides.red.label, green: sides.green.label }} full={full} />
+      ) : (
+        <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
+          {view === "map" ? <NetworkMap {...canvas} /> : <BubbleCanvas {...canvas} centerLabel={centerLabel} sides={sides} />}
+          {hover && hover.n.id !== selected?.id && (
+            <HoverCard
+              n={hover.n}
+              me={me}
+              sides={sides}
+              online={online.has(hover.n.id)}
+              style={{
+                top: hover.y + 14,
+                ...(hover.flip ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 }),
+              }}
+            />
+          )}
+        </div>
+      )}
+      {view === "bubble" && visible.length === 0 && (
+        <p className="-mt-6 mb-4 text-center text-sm text-subtle">
+          {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
+        </p>
+      )}
+      {view !== "states" && (
+        <p className="mt-1 text-xs text-subtle">
+          Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar
+          {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
+        </p>
+      )}
+      {selected && view !== "states" && (
+        <NodeCard n={selected} me={me} sides={sides} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
+      )}
+      {tally && !full && (
+        <BubbleVideo me={me} nodes={nodes} tally={tally} title={me ? `A bolha de @${me.username}` : title} shareUrl={shareUrl} />
+      )}
+    </div>
+  );
+}
+
+/** The bubble itself: the owner in the middle, their people around, Red to the left and Green to the right. */
+function BubbleCanvas({
+  me,
+  nodes: visible,
+  space,
+  full,
+  title,
+  selected,
+  online,
+  resetKey,
+  onPick,
+  onHover,
+  onReset,
+  centerLabel,
+  sides,
+}: CanvasProps & { centerLabel: string; sides: Sides }) {
+  const [layout, setLayout] = useState<SimNode[] | null>(null);
+  const box = useMemo(() => fitBox(layout, space), [layout, space]);
+
   useEffect(() => {
     const { w, h } = space;
     const sim: SimNode[] = [
@@ -154,358 +343,112 @@ export function Bubble({
     setLayout(sim);
   }, [visible, space, me]);
 
-  // Pan & zoom: one view transform (translate, then scale) in viewBox units, driven by drag, pinch,
-  // ctrl/⌘ + wheel (trackpad pinch), the +/− buttons, and tapping someone to focus on them.
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState(HOME);
-  const [dragging, setDragging] = useState(false);
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef({ travel: 0, moved: false, dist: 0 });
+  const pz = usePanZoom(box, full, { onDragStart: () => onHover(null), resetKey });
   const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;
-  const cx = box.x + box.w / 2;
-  const cy = box.y + box.h / 2;
-
-  // Screen → viewBox via the SVG's own matrix, so it stays right when fullscreen letterboxes the viewBox.
-  const toViewBox = useCallback((clientX: number, clientY: number) => {
-    const m = svgRef.current!.getScreenCTM()!.inverse();
-    return { x: m.a * clientX + m.c * clientY + m.e, y: m.b * clientX + m.d * clientY + m.f };
-  }, []);
-
-  /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
-  const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
-    setView((v) => {
-      const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
-      if (k === 1) return HOME;
-      const f = k / v.k;
-      return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
-    });
-  }, []);
-
-  useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-    // Plain wheel keeps scrolling the page (zooms in fullscreen); pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
-    const onWheel = (e: WheelEvent) => {
-      if (!full && !e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
-      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.005));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [toViewBox, zoomAt, full]);
-
-  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 1) gesture.current = { travel: 0, moved: false, dist: 0 };
-    if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
-    }
-  }
-
-  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
-    const prev = pointers.current.get(e.pointerId);
-    if (!prev) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const g = gesture.current;
-    if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      if (g.dist) zoomAt(toViewBox((a.x + b.x) / 2, (a.y + b.y) / 2), dist / g.dist);
-      g.dist = dist;
-      g.moved = true;
-      setDragging(true);
-      return;
-    }
-    const dx = e.clientX - prev.x;
-    const dy = e.clientY - prev.y;
-    g.travel += Math.hypot(dx, dy);
-    if (!g.moved && g.travel < 5) return; // still a tap
-    if (!g.moved) {
-      g.moved = true;
-      setDragging(true);
-      setHover(null);
-      e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    const s = 1 / e.currentTarget.getScreenCTM()!.a;
-    setView((v) => ({ ...v, x: v.x + dx * s, y: v.y + dy * s }));
-  }
-
-  function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    pointers.current.delete(e.pointerId);
-    if (pointers.current.size === 0) setDragging(false);
-  }
-
-  function reset() {
-    setSelected(null);
-    setView(HOME);
-  }
-
-  /** Moves the camera by a fraction of the visible area (→ shows more of the right side). */
-  function pan(dx: number, dy: number) {
-    setView((v) => ({ ...v, x: v.x - (dx * box.w) / 4, y: v.y - (dy * box.h) / 4 }));
-  }
-  const moved = view.k > 1 || view.x !== HOME.x || view.y !== HOME.y;
-
-  function pick(d: SimNode) {
-    const n = d.n!;
-    if (gesture.current.moved) return; // the end of a drag, not a tap
-    // Second tap on a member opens their bubble.
-    if (selected?.id === n.id && n.member && n.username) return router.push(sharePath(n.username));
-    setSelected(n);
-    setHover(null);
-    // Focus: zoom onto the dot (small dots zoom more).
-    const k = Math.min(4, Math.max(1.8, 50 / d.r));
-    setView({ k, x: cx - k * d.x!, y: cy - k * d.y! });
-  }
+  const { cx, cy } = pz;
 
   return (
-    <div
-      ref={wrap}
-      data-tour="bubble"
-      className={full ? "fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg p-3" : "rounded-2xl border border-line bg-card p-4"}
-    >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          {shareUrl && (
-            <a
-              href={shareUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full bg-fg px-3 py-1 text-sm text-bg"
-            >
-              Compartilhar no X
-            </a>
+    <>
+      <svg
+        {...pz.svgProps}
+        className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${pz.dragging ? "cursor-grabbing" : "cursor-grab"}`}
+        role="img"
+        aria-label={title}
+        onClick={(e) => e.target === e.currentTarget && !pz.moved() && onReset()}
+      >
+        <defs>
+          {me?.avatar && (
+            <pattern id="av-me" width="1" height="1" patternContentUnits="objectBoundingBox">
+              <image href={me.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
           )}
-        </div>
-        <div data-tour="bubble-filters" className="flex flex-wrap gap-1 text-sm">
-          {filters.map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => {
-                setFilter(k);
-                reset();
-              }}
-              className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              setFull((f) => !f);
-              reset();
-            }}
-            className="rounded-full bg-muted px-3 py-1"
-            aria-label={full ? "Sair da tela cheia" : "Tela cheia"}
-          >
-            {full ? "✕ Fechar" : "⛶ Tela cheia"}
-          </button>
-        </div>
-      </div>
-      {live && live.watching > 0 && (
-        <div className="mb-2">
-          <LiveWatchers live={live} own={own} />
-        </div>
-      )}
-      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
-        <Legend c="var(--red)" label={SIDE.red} />
-        <Legend c="var(--green)" label={SIDE.green} />
-        <Legend c="var(--none)" label="Ainda sem lado" />
-        {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
-        <span>Bolinhas pequenas = ainda não entraram no app</span>
-      </div>
-      <div className={`relative ${full ? "min-h-[320px] flex-1" : ""}`}>
-        <svg
-          ref={svgRef}
-          viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
-          className={`${full ? "absolute inset-0 h-full" : "h-auto"} w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-          // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
-          style={{ touchAction: view.k > 1 || full ? "none" : "pan-y" }}
-          role="img"
-          aria-label={title}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
-            if (dir) {
-              e.preventDefault();
-              pan(dir[0] / 2, dir[1] / 2);
-            } else if (e.key === "+" || e.key === "=") zoomAt({ x: cx, y: cy }, 1.6);
-            else if (e.key === "-") zoomAt({ x: cx, y: cy }, 1 / 1.6);
-            else if (e.key === "0") reset();
-          }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onClick={(e) => e.target === e.currentTarget && !gesture.current.moved && reset()}
-        >
-          <defs>
-            {me?.avatar && (
-              <pattern id="av-me" width="1" height="1" patternContentUnits="objectBoundingBox">
-                <image href={me.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+          {layout?.map((d) =>
+            d.n?.avatar ? (
+              <pattern key={d.n.id} id={`av-${d.n.id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
+                <image href={d.n.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
-            )}
-            {layout?.map((d) =>
-              d.n?.avatar ? (
-                <pattern key={d.n.id} id={`av-${d.n.id}`} width="1" height="1" patternContentUnits="objectBoundingBox">
-                  <image href={d.n.avatar} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
-                </pattern>
-              ) : null,
-            )}
-          </defs>
-          <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--red)] text-base font-bold">
-            {SIDE.red}
-          </text>
-          <text
-            x={box.x + box.w - 12}
-            y={box.y + 20}
-            textAnchor="end"
-            className="fill-[var(--green)] text-base font-bold"
-          >
-            {SIDE.green}
-          </text>
-          <g
-            className={`bubble-zoom ${dragging ? "is-dragging" : ""}`}
-            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
-          >
-            {layout?.map((d) => {
-              const n = d.n;
-              const avatar = n ? n.avatar : me?.avatar;
-              const ring = color(n, me);
-              const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
-              // Ripple: dots pop in outward from the middle.
-              const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
-              return (
-                <g
-                  key={n?.id ?? "me"}
-                  style={{
-                    transform: `translate(${d.x}px, ${d.y}px)`,
-                    opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
-                  }}
-                  onClick={() => n && pick(d)}
-                  onPointerEnter={(e) => {
-                    if (!n || e.pointerType !== "mouse" || pointers.current.size) return;
-                    const rect = e.currentTarget.ownerSVGElement!.parentElement!.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    setHover({ n, x, y: e.clientY - rect.top, flip: x > rect.width - 260 });
-                  }}
-                  onPointerLeave={() => setHover((h) => (h?.n.id === n?.id ? null : h))}
-                  className={`bubble-node ${n ? "cursor-pointer" : ""}`}
-                >
-                  <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
-                    {/* The owner: a halo and a pulsing ring around their photo. */}
-                    {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
-                    {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
-                    {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
-                    {/* Online now: two staggered sonar rings, and the photo itself breathes. */}
-                    {n && online.has(n.id) && (
-                      <>
-                        <circle r={d.r + 1} className="bubble-sonar" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
-                        <circle r={d.r + 1} className="bubble-sonar bubble-sonar-late" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
-                      </>
-                    )}
-                    <g className={n && online.has(n.id) ? "bubble-live" : undefined}>
-                      <circle
-                        r={d.r - sw / 2}
-                        fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
-                        stroke={ring}
-                        strokeWidth={sw}
-                      />
-                      {n && online.has(n.id) && (
-                        <circle cx={d.r * 0.7} cy={-d.r * 0.7} r={Math.max(3.5, d.r * 0.28)} fill="var(--accent)" stroke="var(--card)" strokeWidth={1.5} />
-                      )}
-                    </g>
-                    {!avatar && d.r > 9 && (
-                      <text
-                        textAnchor="middle"
-                        dy="0.35em"
-                        className="pointer-events-none fill-[var(--fg)] font-bold"
-                        style={{ fontSize: Math.min(14, d.r * 0.6) }}
-                      >
-                        {n ? initials(n.name) : centerLabel}
-                      </text>
-                    )}
-                    {!n && <title>Você</title>}
-                  </g>
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-        {hover && !dragging && hover.n.id !== selected?.id && (
-          <HoverCard
-            n={hover.n}
-            me={me}
-            online={online.has(hover.n.id)}
-            style={{
-              top: hover.y + 14,
-              ...(hover.flip ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 }),
-            }}
-          />
-        )}
-        <div className="absolute bottom-1 left-1 grid grid-cols-3 gap-0.5">
-          <span />
-          <ZoomButton label="Mover para cima" onClick={() => pan(0, -1)}>
-            ↑
-          </ZoomButton>
-          <span />
-          <ZoomButton label="Mover para a esquerda" onClick={() => pan(-1, 0)}>
-            ←
-          </ZoomButton>
-          <ZoomButton label="Mover para baixo" onClick={() => pan(0, 1)}>
-            ↓
-          </ZoomButton>
-          <ZoomButton label="Mover para a direita" onClick={() => pan(1, 0)}>
-            →
-          </ZoomButton>
-        </div>
-        <div className="absolute right-1 bottom-1 flex gap-1">
-          {moved && (
-            <ZoomButton label="Voltar ao início" onClick={reset}>
-              ⟲
-            </ZoomButton>
+            ) : null,
           )}
-          <ZoomButton label="Diminuir zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1 / 1.6)}>
-            −
-          </ZoomButton>
-          <ZoomButton label="Aumentar zoom" onClick={() => zoomAt({ x: cx, y: cy }, 1.6)}>
-            +
-          </ZoomButton>
-        </div>
-      </div>
-      {visible.length === 0 && (
-        <p className="-mt-6 mb-4 text-center text-sm text-subtle">
-          {filter === "members" ? "Ninguém dessa bolha entrou no app ainda." : "Ninguém aqui ainda."}
-        </p>
-      )}
-      <p className="mt-1 text-xs text-subtle">
-        Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar
-        {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
-      </p>
-      {selected && (
-        <NodeCard n={selected} me={me} shareBase={shareBase} readOnly={readOnly} onClose={() => setSelected(null)} />
-      )}
-      {tally && !full && (
-        <BubbleVideo me={me} nodes={nodes} tally={tally} title={me ? `A bolha de @${me.username}` : title} shareUrl={shareUrl} />
-      )}
-    </div>
-  );
-}
-
-function ZoomButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="grid h-9 w-9 place-items-center rounded-full border border-line bg-card text-lg leading-none shadow-sm"
-    >
-      {children}
-    </button>
+        </defs>
+        <text x={box.x + 12} y={box.y + 20} textAnchor="start" className="fill-[var(--red)] text-base font-bold">
+          {sides.red.label}
+        </text>
+        <text
+          x={box.x + box.w - 12}
+          y={box.y + 20}
+          textAnchor="end"
+          className="fill-[var(--green)] text-base font-bold"
+        >
+          {sides.green.label}
+        </text>
+        <g className={`bubble-zoom ${pz.dragging ? "is-dragging" : ""}`} style={pz.stageStyle}>
+          {layout?.map((d) => {
+            const n = d.n;
+            const avatar = n ? n.avatar : me?.avatar;
+            const ring = color(n, me);
+            const sw = n ? Math.max(1.5, d.r * 0.16) : 4;
+            // Ripple: dots pop in outward from the middle.
+            const delay = Math.min(900, Math.hypot(d.x! - cx, d.y! - cy) * 2.2);
+            return (
+              <g
+                key={n?.id ?? "me"}
+                style={{
+                  transform: `translate(${d.x}px, ${d.y}px)`,
+                  opacity: focused && focused !== d ? 0.3 : n && !n.member ? 0.75 : 1,
+                }}
+                onClick={() => {
+                  if (!n || pz.moved()) return; // the end of a drag, not a tap
+                  if (onPick(n)) pz.focus(d.x!, d.y!, d.r);
+                }}
+                onPointerEnter={(e) => {
+                  if (!n || e.pointerType !== "mouse" || pz.pressed()) return;
+                  onHover(n, e);
+                }}
+                onPointerLeave={() => onHover(null)}
+                className={`bubble-node ${n ? "cursor-pointer" : ""}`}
+              >
+                <g className="bubble-pop" style={{ animationDelay: `${delay}ms` }}>
+                  {/* The owner: a halo and a pulsing ring around their photo. */}
+                  {!n && <circle r={d.r + 7} fill="none" stroke="var(--fg)" strokeOpacity={0.18} strokeWidth={6} />}
+                  {!n && <circle r={d.r} className="bubble-pulse" fill="none" stroke={ring} strokeWidth={3} />}
+                  {/* Photo inside a ring in the vote's color; initials on a neutral fill when there's no photo. */}
+                  {/* Online now: two staggered sonar rings, and the photo itself breathes. */}
+                  {n && online.has(n.id) && (
+                    <>
+                      <circle r={d.r + 1} className="bubble-sonar" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
+                      <circle r={d.r + 1} className="bubble-sonar bubble-sonar-late" fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, d.r * 0.14)} />
+                    </>
+                  )}
+                  <g className={n && online.has(n.id) ? "bubble-live" : undefined}>
+                    <circle
+                      r={d.r - sw / 2}
+                      fill={avatar ? `url(#av-${n ? n.id : "me"})` : "var(--muted)"}
+                      stroke={ring}
+                      strokeWidth={sw}
+                    />
+                    {n && online.has(n.id) && (
+                      <circle cx={d.r * 0.7} cy={-d.r * 0.7} r={Math.max(3.5, d.r * 0.28)} fill="var(--accent)" stroke="var(--card)" strokeWidth={1.5} />
+                    )}
+                  </g>
+                  {!avatar && d.r > 9 && (
+                    <text
+                      textAnchor="middle"
+                      dy="0.35em"
+                      className="pointer-events-none fill-[var(--fg)] font-bold"
+                      style={{ fontSize: Math.min(14, d.r * 0.6) }}
+                    >
+                      {n ? initials(n.name) : centerLabel}
+                    </text>
+                  )}
+                  {!n && <title>Você</title>}
+                </g>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+      <PanZoomControls pz={pz} onReset={onReset} />
+    </>
   );
 }
 
@@ -528,18 +471,20 @@ function relation(n: NetworkNode, me: Me | null) {
     .join(" · ");
 }
 
-function status(n: NetworkNode) {
-  return !n.member ? "Ainda não entrou no app" : n.vote ? `Time ${SIDE[n.vote]}` : "Entrou mas ainda não escolheu";
+function status(n: NetworkNode, sides: Sides) {
+  return !n.member ? "Ainda não entrou no app" : n.vote ? `Time ${sides[n.vote].label}` : "Entrou mas ainda não escolheu";
 }
 
 function HoverCard({
   n,
   me,
+  sides,
   online,
   style,
 }: {
   n: NetworkNode;
   me: Me | null;
+  sides: Sides;
   online: boolean;
   style: React.CSSProperties;
 }) {
@@ -570,7 +515,7 @@ function HoverCard({
         {n.username && <div className="truncate text-subtle">@{n.username}</div>}
         <div className="truncate text-xs text-subtle">
           {online && <span className="font-semibold text-[var(--accent)]">● Online · </span>}
-          {status(n)}
+          {status(n, sides)}
           {rel && ` · ${rel}`}
         </div>
       </div>
@@ -581,12 +526,14 @@ function HoverCard({
 function NodeCard({
   n,
   me,
+  sides,
   shareBase,
   readOnly,
   onClose,
 }: {
   n: NetworkNode;
   me: Me | null;
+  sides: Sides;
   shareBase: string;
   readOnly: boolean;
   onClose: () => void;
@@ -599,7 +546,7 @@ function NodeCard({
           {n.name ?? "Conta do X"} {n.username && <span className="font-normal text-subtle">@{n.username}</span>}
         </div>
         <div className="text-sm text-subtle">
-          {status(n)} {rel && `· ${rel}`}
+          {status(n, sides)} {rel && `· ${rel}`}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 text-sm">

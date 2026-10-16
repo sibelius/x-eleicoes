@@ -53,10 +53,10 @@ export async function exchangeCode(code: string, verifier: string, redirectUri: 
   return (await res.json()) as { access_token: string };
 }
 
-export type XUser = { id: string; username: string; name: string; profile_image_url?: string };
+export type XUser = { id: string; username: string; name: string; profile_image_url?: string; location?: string };
 
 export async function getMe(token: string): Promise<XUser> {
-  const res = await fetch(`${X_API}/users/me?user.fields=profile_image_url`, {
+  const res = await fetch(`${X_API}/users/me?user.fields=profile_image_url,location`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`X /users/me failed: ${res.status} ${await res.text()}`);

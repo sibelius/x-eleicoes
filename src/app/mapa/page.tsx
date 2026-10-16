@@ -3,9 +3,11 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { GlobalMap } from "@/components/GlobalMap";
+import { StatesGrid } from "@/components/StatesMap";
 import { Tour } from "@/components/Tour";
 import { LiveRoom } from "@/components/play/LiveRoom";
 import { isLiveNight } from "@/lib/links";
+import { allStates } from "@/lib/places";
 import { getMe } from "@/lib/network";
 import { getRoom } from "@/lib/room";
 import { getUserId } from "@/lib/session";
@@ -43,9 +45,43 @@ export default function MapPage({ searchParams }: PageProps<"/mapa">) {
         <LiveStrip searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<div className="shimmer mx-3 mb-3 flex-1 rounded-xl" />}>
-        <Map searchParams={searchParams} />
+        <Views searchParams={searchParams} />
       </Suspense>
     </main>
+  );
+}
+
+// Two views of everyone: the map of bubbles (default) and the states cartogram (?ver=estados).
+async function Views({ searchParams }: { searchParams: PageProps<"/mapa">["searchParams"] }) {
+  const sp = await searchParams;
+  const states = sp.ver === "estados";
+  const tab = (on: boolean) => `rounded-full px-3 py-0.5 ${on ? "bg-fg text-bg" : ""}`;
+  return (
+    <>
+      <div className="flex px-3 pb-2 text-sm">
+        <div role="tablist" aria-label="Como ver" className="flex rounded-full border border-line p-0.5">
+          <Link href="/mapa" role="tab" aria-selected={!states} className={tab(!states)}>
+            Bolhas
+          </Link>
+          <Link href="/mapa?ver=estados" role="tab" aria-selected={states} className={tab(states)}>
+            Estados
+          </Link>
+        </div>
+      </div>
+      {states ? <States /> : <Map searchParams={searchParams} />}
+    </>
+  );
+}
+
+async function States() {
+  await connection();
+  const states = await allStates();
+  return (
+    <section className="mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-line bg-card p-4">
+      <h1 className="text-lg font-semibold">Vermelho × Verde por estado</h1>
+      <p className="mb-3 text-sm text-subtle">Todo mundo que entrou no app e tem estado conhecido.</p>
+      <StatesGrid states={states} everyone full />
+    </section>
   );
 }
 

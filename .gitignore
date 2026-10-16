@@ -42,3 +42,9 @@ next-env.d.ts
 
 local.db*
 !.env.example
+
+# Sales material (media kit PDFs), kept local
+vendas/
+
+# Marketing material (images, videos, memes), kept local
+divulgacao/

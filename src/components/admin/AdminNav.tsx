@@ -6,12 +6,15 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/admin", label: "Visão geral" },
   { href: "/admin/anuncios", label: "Anúncios" },
+  { href: "/admin/doacoes", label: "Doações" },
   { href: "/admin/origem", label: "Origem (UTM)" },
   { href: "/admin/grafo", label: "Grafo" },
   { href: "/admin/centro", label: "Quem é o centro" },
   { href: "/admin/convites", label: "Convites" },
   { href: "/admin/polarizacao", label: "Polarização" },
+  { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/mensagens", label: "Mensagens" },
+  { href: "/admin/temas", label: "Temas" },
   { href: "/admin/push", label: "Push" },
   { href: "/admin/banco", label: "Banco de dados" },
 ];

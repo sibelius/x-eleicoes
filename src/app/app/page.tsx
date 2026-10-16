@@ -20,6 +20,11 @@ import { isAdmin } from "@/lib/admin";
 import { appUrl, getUserId } from "@/lib/session";
 import Link from "next/link";
 import { Tour } from "@/components/Tour";
+import { ShareMenu } from "@/components/ShareMenu";
+import { StreakCard } from "@/components/play/StreakCard";
+import { FeedbackButton } from "@/components/FeedbackButton";
+import { SupporterBadgeFor } from "@/components/SupporterBadge";
+import { StatePicker } from "@/components/StatePicker";
 import { NetworkAnalytics } from "@/components/NetworkAnalytics";
 import { Missing } from "@/components/play/Missing";
 import { Twins } from "@/components/play/Twins";
@@ -73,7 +78,10 @@ async function Dashboard() {
           {me.avatar && <img src={me.avatar} alt="" className="h-10 w-10 rounded-full" />}
           <div>
             <div className="font-semibold">
-              {me.name} <InviteBadge invites={invites} />
+              {me.name} <InviteBadge invites={invites} />{" "}
+              <Suspense fallback={null}>
+                <SupporterBadgeFor uid={me.id} />
+              </Suspense>
             </div>
             <div className="text-sm text-subtle">@{me.username}</div>
           </div>
@@ -88,6 +96,12 @@ async function Dashboard() {
               Admin
             </Link>
           )}
+          <Link href="/hoje" className="font-semibold underline">
+            🎯 Pergunta do dia
+          </Link>
+          <Link href="/roleta" className="font-semibold underline">
+            🎲 Roleta
+          </Link>
           <Link href="/ranking" className="text-subtle underline">
             Ranking
           </Link>
@@ -103,12 +117,17 @@ async function Dashboard() {
           <Link href="/grafo" className="text-subtle underline">
             A rede
           </Link>
+          <Link href="/audiencia" className="text-subtle underline">
+            📊 Sua audiência{" "}
+            <span className="rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-white no-underline">beta</span>
+          </Link>
           <Link href="/r" className="text-subtle underline">
             Todas as bolhas
           </Link>
           <Link href="/privacidade" className="text-subtle underline">
             Meus dados
           </Link>
+          <FeedbackButton className="text-subtle underline" label="💬 Feedback" />
           <form action="/api/auth/logout" method="post">
             <button className="text-subtle underline">Sair</button>
           </form>
@@ -128,15 +147,14 @@ async function Dashboard() {
             <p className="mt-2 text-sm text-subtle">
               👀 {views} {views === 1 ? "pessoa viu" : "pessoas viram"} sua bolha
             </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-sm">
-              <a
-                className="rounded-full bg-fg px-4 py-2 text-bg"
-                href={shareTweetUrl(base, me.username, tally, true)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Compartilhar no X
-              </a>
+            <ShareMenu
+              className="mt-4"
+              base={base}
+              target={{ kind: "bubble", username: me.username, tally, own: true }}
+              xUrl={shareTweetUrl(base, me.username, tally, true)}
+              telegram
+            />
+            <div className="mt-2 flex flex-wrap gap-2 text-sm">
               <a className="rounded-full border border-line px-4 py-2" href={sharePath(me.username)} target="_blank">
                 Ver página pública
               </a>
@@ -169,6 +187,18 @@ async function Dashboard() {
         <aside className="contents lg:grid lg:content-start lg:gap-4">
           <div data-tour="vote" className="order-1 lg:order-none">
             <VotePanel me={me} />
+          </div>
+          <div className="order-1 grid gap-2 lg:order-none">
+            <StreakCard uid={me.id} />
+            <Link href="/roleta" className="flex items-center gap-3 rounded-2xl border border-line bg-card p-4">
+              <span className="text-3xl" aria-hidden>
+                🎲
+              </span>
+              <span className="min-w-0">
+                <b className="block">Roleta</b>
+                <span className="text-sm text-subtle">Conheça alguém aleatório, do seu lado ou do outro, e puxe conversa no X</span>
+              </span>
+            </Link>
           </div>
           {me.vote && (
             <div data-tour="other-side" className="order-4 lg:order-none">
@@ -236,6 +266,9 @@ async function Dashboard() {
           </section>
           <div className="order-4 lg:order-none">
             <NetworkAnalytics username={me.username} />
+          </div>
+          <div className="order-5 lg:order-none">
+            <StatePicker />
           </div>
           {pushPublicKey() && (
             <div data-tour="push" className="order-5 lg:order-none">

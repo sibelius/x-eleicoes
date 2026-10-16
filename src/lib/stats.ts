@@ -1,4 +1,5 @@
 import "server-only";
+import { cacheLife } from "next/cache";
 import { ADS } from "./ads";
 import { db } from "./db";
 import { TABLES } from "./schema";
@@ -321,14 +322,27 @@ export async function getPushLog(limit = 300) {
 }
 
 /** Database health: rows per table, file size, and how the main tables grew per day. */
+/**
+ * Cached a minute: it used to be ~30 uncached queries per visit, queued behind the site's traffic on a
+ * 5-connection pool. On Postgres, row counts are the planner's live-tuple stats (one query, close enough).
+ */
 export async function getDbStats() {
+  "use cache: remote";
+  cacheLife({ stale: 30, revalidate: 60, expire: 600 });
   const client = await db();
   const pg = client.dialect === "pg";
   const tables = TABLES;
-  const counts = await client.batch(
-    tables.map((t) => `SELECT COUNT(*) AS n FROM ${t}`),
-    "read",
-  );
+  const counts = pg
+    ? await client
+        .execute("SELECT relname AS name, n_live_tup AS n FROM pg_stat_user_tables")
+        .then((r) => {
+          const by = new Map(r.rows.map((x) => [String(x.name), Number(x.n)]));
+          return tables.map((t) => ({ rows: [{ n: by.get(t) ?? 0 }] }));
+        })
+    : await client.batch(
+        tables.map((t) => `SELECT COUNT(*) AS n FROM ${t}`),
+        "read",
+      );
   let bytes: number | null = null;
   try {
     if (pg) {

@@ -3,10 +3,11 @@ import { db } from "@/lib/db";
 import { getMe, resolveUser } from "@/lib/network";
 import { notifyShared, type ShareKind } from "@/lib/push";
 import { appUrl, getUserId } from "@/lib/session";
+import { SHARE_VIAS, type ShareVia } from "@/lib/share-links";
 
 const VISITOR = "xe_vid";
 
-/** A post-to-X link (or the phone share sheet) was used: record it and tell whose bubble it was. */
+/** A share button was used (X, share sheet, WhatsApp, Stories, LinkedIn, Telegram, copy link): record it and tell whose bubble it was. */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { url?: unknown; via?: unknown };
   let path: string;
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
-  const via = body.via === "native" ? "native" : "x";
+  const via: ShareVia = SHARE_VIAS.includes(body.via as ShareVia) ? (body.via as ShareVia) : "x";
   const bubble = path.match(/^\/r\/([^/]+)$/);
   const compare = path.match(/^\/c\/([^/]+)\/([^/]+)$/);
   const kind: ShareKind | null = bubble ? "bubble" : compare ? "compare" : null;

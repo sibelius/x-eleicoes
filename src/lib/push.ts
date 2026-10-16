@@ -5,6 +5,7 @@ import { newId } from "./sql";
 import { BADGE_STEPS, SIDE, daysToBigDay, pct, sharePath, withUtm } from "./links";
 import { getShare } from "./network";
 import type { Racer } from "./race";
+import { allStreaks, getDailyQuestion } from "./daily";
 
 export function pushPublicKey() {
   return process.env.VAPID_PUBLIC_KEY ?? null;
@@ -23,7 +24,7 @@ function ready() {
 }
 
 /** `campaign` names the notification in the UTM tags its link carries (utm_source=push). */
-type Payload = { title: string; body: string; url: string; campaign: string };
+export type Payload = { title: string; body: string; url: string; campaign: string };
 
 /** Push to the given browser subscriptions (rows carry uid); dead ones (404/410) are removed; each member's push is logged. */
 async function send(rows: Record<string, unknown>[], payload: Payload) {
@@ -67,7 +68,7 @@ async function send(rows: Record<string, unknown>[], payload: Payload) {
   return sent;
 }
 
-async function sendTo(uid: string, payload: Payload) {
+export async function sendTo(uid: string, payload: Payload) {
   const client = await db();
   const r = await client.execute({ sql: "SELECT uid, endpoint, p256dh, auth FROM push_subs WHERE uid = ?", args: [uid] });
   return send(r.rows, payload);
@@ -362,4 +363,38 @@ export async function notifyMessage(to: string, from: string, kind: "ask" | "rep
     url: `${origin}/mensagens`,
     campaign: kind === "ask" ? "ask" : "ask-reply",
   });
+}
+
+/** "Pergunta do dia": nudge subscribed members who haven't played today (at most one per member per day). */
+export async function sendDailyQuestion(origin: string) {
+  if (!ready()) return { users: 0, sent: 0 };
+  const q = await getDailyQuestion();
+  if (!q) return { users: 0, sent: 0 };
+  const key = `daily-question:${q.day}`;
+  const client = await db();
+  const [subs, streaks] = await Promise.all([
+    client.execute({
+      sql: `SELECT DISTINCT s.uid FROM push_subs s
+            WHERE NOT EXISTS (SELECT 1 FROM daily_plays d WHERE d.uid = s.uid AND d.day = ?)
+              AND NOT EXISTS (SELECT 1 FROM once_pushes o WHERE o.key = ? AND o.uid = s.uid)`,
+      args: [q.day, key],
+    }),
+    allStreaks(),
+  ]);
+  let sent = 0;
+  for (const row of subs.rows) {
+    const uid = String(row.uid);
+    const claim = await client.execute({ sql: "INSERT OR IGNORE INTO once_pushes (key, uid) VALUES (?, ?)", args: [key, uid] });
+    if (!claim.rowsAffected) continue;
+    const n = streaks.get(uid)?.current ?? 0;
+    sent += await sendTo(uid, {
+      title: "Pergunta do dia 🎯",
+      body: n
+        ? `Chute a bolha de @${q.username} · não perca sua sequência de ${n} ${n === 1 ? "dia" : "dias"} 🔥`
+        : `Chute a bolha de @${q.username} e comece sua sequência 🔥`,
+      url: `${origin}/hoje`,
+      campaign: "daily-question",
+    });
+  }
+  return { users: subs.rows.length, sent };
 }

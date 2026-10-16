@@ -299,7 +299,7 @@ function localClustering(nb: number[], adj: number[][]) {
 }
 
 /** Louvain modularity optimization (local moves + aggregation); communities renumbered by size (0 = biggest). */
-function louvain(adj: number[][], n: number) {
+export function louvain(adj: number[][], n: number) {
   // Weighted adjacency per (super)node; an aggregated node's self-loop holds twice its internal weight.
   let graph: Map<number, number>[] = adj.map((nb) => {
     const m = new Map<number, number>();

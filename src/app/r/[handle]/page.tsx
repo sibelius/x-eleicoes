@@ -21,6 +21,8 @@ import { viewCount } from "@/lib/views";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import Link from "next/link";
 import { Tour } from "@/components/Tour";
+import { ShareMenu } from "@/components/ShareMenu";
+import { SupporterBadgeFor } from "@/components/SupporterBadge";
 
 async function load(params: PageProps<"/r/[handle]">["params"]) {
   const handle = decodeURIComponent((await params).handle);
@@ -75,7 +77,10 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
         {share.user.avatar && <img src={share.user.avatar} alt="" className="h-12 w-12 rounded-full" />}
         <div>
           <div className="text-xl font-bold">
-            {share.user.name} <InviteBadge invites={invites} full />
+            {share.user.name} <InviteBadge invites={invites} full />{" "}
+            <Suspense fallback={null}>
+              <SupporterBadgeFor uid={user.id} />
+            </Suspense>
           </div>
           <div className="text-subtle">@{share.user.username}</div>
         </div>
@@ -125,15 +130,14 @@ async function Share({ params }: { params: PageProps<"/r/[handle]">["params"] })
       >
         Ver de que lado está a minha rede
       </a>
-      <a
-        data-tour="r-share"
-        href={shareTweetUrl(appUrl(), share.user.username, share.tally)}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 self-start rounded-full border border-line px-6 py-3 font-semibold"
-      >
-        Compartilhar esta bolha no X
-      </a>
+      <div data-tour="r-share" className="mt-3 self-start">
+        <ShareMenu
+          base={appUrl()}
+          target={{ kind: "bubble", username: share.user.username, tally: share.tally }}
+          xUrl={shareTweetUrl(appUrl(), share.user.username, share.tally)}
+          xLabel="Compartilhar esta bolha no X"
+        />
+      </div>
       <a
         data-tour="r-compare"
         href={`/c?b=${encodeURIComponent(share.user.username)}`}

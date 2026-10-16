@@ -4,6 +4,11 @@ import { getUserId } from "@/lib/session";
 
 type Sub = { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
 
+/** Whether this visitor is signed in (push subscriptions belong to a member). */
+export async function GET() {
+  return NextResponse.json({ member: Boolean(await getUserId()) }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(req: Request) {
   const uid = await getUserId();
   if (!uid) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

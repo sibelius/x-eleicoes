@@ -10,6 +10,7 @@ import { SIDE, comparePath, compareTweetUrl, pct, sharePath } from "@/lib/links"
 import { getComparison } from "@/lib/network";
 import { appUrl } from "@/lib/session";
 import { ViewBeacon } from "@/components/ViewBeacon";
+import { ShareMenu } from "@/components/ShareMenu";
 
 type Params = PageProps<"/c/[a]/[b]">["params"];
 
@@ -66,10 +67,8 @@ async function Compare({ params }: { params: Params }) {
         {verdict && <b className="text-fg">{verdict} </b>}
         {c.shared} {c.shared === 1 ? "pessoa está" : "pessoas estão"} nas duas bolhas.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2 text-sm">
-        <a className="rounded-full bg-fg px-4 py-2 text-bg" href={compareTweetUrl(base, A, B)} target="_blank" rel="noreferrer">
-          Compartilhar no X
-        </a>
+      <ShareMenu className="mt-4" base={base} target={{ kind: "compare", a: A, b: B }} xUrl={compareTweetUrl(base, A, B)} />
+      <div className="mt-2 flex flex-wrap gap-2 text-sm">
         <Link className="rounded-full border border-line px-4 py-2" href={comparePath(B, A)}>
           Inverter
         </Link>

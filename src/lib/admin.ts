@@ -11,6 +11,11 @@ const ADMINS = new Set(
     .filter(Boolean),
 );
 
+/** The admins' X ids (e.g. to push them new feedback). */
+export function adminIds() {
+  return [...ADMINS];
+}
+
 export async function isAdmin() {
   const uid = await getUserId();
   return !!uid && ADMINS.has(uid);

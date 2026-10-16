@@ -51,6 +51,25 @@ export default function PrivacyPage() {
         </li>
         <li>As notificações push enviadas para você (título e texto), para sabermos o que foi entregue.</li>
         <li>De onde você chegou (as marcações utm dos links que o app gera, como posts no X e notificações), para saber quais links funcionam.</li>
+        <li>
+          Doações via Pix: se você usar “Já doei”, guardamos o valor informado, o nome que você digitar (ou seu @, se
+          estiver logado) e se quer aparecer no mural. Conferimos no extrato antes de contar. O mural mostra só nome/@ e
+          foto de quem marcou a opção, nunca valores; quem doou publicamente ganha o selo 💚 Apoiador.
+        </li>
+        <li>
+          Seu estado (UF): lido da localização pública do seu perfil no X ou escolhido por você. Só aparece somado com
+          outras pessoas (no mínimo 3), nunca individualmente, e você pode apagar quando quiser.
+        </li>
+        <li>
+          Pergunta do dia e Roleta: seus chutes e sequências; quem te tira na roleta só recebe seu perfil público. Quem
+          desliga os pedidos em Mensagens não é sorteado. Ao mandar DM ou marcar alguém pela roleta, essa pessoa recebe
+          um aviso com o seu @.
+        </li>
+        <li>Feedback que você enviar (texto, página e o contato opcional), lido só pela administração.</li>
+        <li>
+          Anúncios: contamos impressões e cliques por visitante anônimo ou conta; anunciantes recebem apenas números
+          somados, nunca quem viu ou clicou.
+        </li>
       </ul>
 
       <h2 className="mt-6 text-lg font-semibold">Base legal e cuidados (LGPD)</h2>

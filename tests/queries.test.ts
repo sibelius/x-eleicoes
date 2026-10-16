@@ -162,10 +162,11 @@ describe("admin", () => {
     expect(pushes.rows).toHaveLength(3);
     await same(() => stats.getMemberGraph());
     await same(() => stats.getBubbleLeans());
-    // Size and engine differ by design; the counts must not.
+    // Size and engine differ by design; Postgres row counts are planner estimates (PGlite keeps none), the rest must match.
     const a = await on(dbs.sqlite, () => stats.getDbStats());
     const b = await on(dbs.pg, () => stats.getDbStats());
-    expect(b.tables).toEqual(a.tables);
+    expect(b.tables.map((t) => t.name).sort()).toEqual(a.tables.map((t) => t.name).sort());
+    expect(a.tables.find((t) => t.name === "edges")!.rows).toBeGreaterThan(0);
     expect(b.daily).toEqual(a.daily);
     expect(b.health).toEqual(a.health);
   });

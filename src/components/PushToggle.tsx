@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { pushSupported, subscribePush } from "@/lib/push-client";
 
 type State = "loading" | "unsupported" | "denied" | "off" | "on";
 
@@ -18,18 +19,13 @@ function markAsked() {
   } catch {}
 }
 
-function key(b64: string) {
-  const s = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(s, (c) => c.charCodeAt(0));
-}
-
 export function PushToggle({ publicKey }: { publicKey: string }) {
   const [state, setState] = useState<State>("loading");
   const enableRef = useRef(() => {});
 
   useEffect(() => {
     async function check(): Promise<State> {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
+      if (!pushSupported()) return "unsupported";
       if (Notification.permission === "denied") return "denied";
       const reg = await navigator.serviceWorker.register("/sw.js");
       return (await reg.pushManager.getSubscription()) ? "on" : "off";
@@ -53,15 +49,7 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
   async function enable() {
     setState("loading");
     try {
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key(publicKey) });
-      const res = await fetch("/api/push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
-      });
-      setState(res.ok ? "on" : "off");
+      setState((await subscribePush(publicKey)) ? "on" : "off");
     } catch {
       setState(Notification.permission === "denied" ? "denied" : "off");
     }
