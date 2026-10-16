@@ -55,6 +55,7 @@ body {
 .bubble-card:fullscreen .bubble-canvas {
   min-height: 160px;
   flex: 1;
+  touch-action: none;
 }
 .bubble-card:fullscreen .bubble-canvas > svg {
   position: absolute;
