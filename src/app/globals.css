@@ -45,6 +45,22 @@ body {
 }
 
 /* Bubble: dots pop in as a ripple, glide when the layout changes, and the view zooms onto a selected dot. */
+.bubble-card:fullscreen {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  overflow-y: auto;
+  border-radius: 0;
+}
+.bubble-card:fullscreen .bubble-canvas {
+  min-height: 160px;
+  flex: 1;
+}
+.bubble-card:fullscreen .bubble-canvas > svg {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
 @keyframes bubble-pop {
   0% { transform: scale(0); opacity: 0; }
   70% { transform: scale(1.12); opacity: 1; }

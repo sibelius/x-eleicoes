@@ -1,0 +1,106 @@
+// Run: node tests/browser/bubble-controls.mjs
+import assert from "node:assert/strict";
+import { withBubbleFixture } from "./bubble-fixture.mjs";
+
+await withBubbleFixture(async ({ page }) => {
+  const svg = page.locator('svg[aria-label="Sua bolha"]');
+  const view = page.locator(".bubble-zoom");
+  const matrix = () => view.evaluate((el) => {
+    const m = new DOMMatrix(getComputedStyle(el).transform);
+    return { k: m.a, x: m.e, y: m.f };
+  });
+  const reset = async () => { await svg.focus(); await page.keyboard.press("0"); };
+  const bounds = await svg.boundingBox();
+  const point = { x: Math.round(bounds.x + bounds.width * 0.65), y: Math.round(bounds.y + bounds.height * 0.4) };
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.wheel(0, -100);
+  await page.waitForFunction(() => new DOMMatrix(getComputedStyle(document.querySelector(".bubble-zoom")).transform).a > 1);
+  const zoomed = await matrix();
+  assert(zoomed.k > 1, "plain wheel zooms");
+  assert.equal(await page.evaluate(() => scrollY), 0, "wheel over the canvas does not scroll the page");
+  const anchor = await svg.evaluate((el, p) => new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM().inverse()).toJSON(), point);
+  assert(Math.abs(zoomed.x - anchor.x * (1 - zoomed.k)) < 0.1, "zoom keeps the cursor anchor");
+
+  await page.mouse.wheel(0, -10000);
+  await page.waitForTimeout(50);
+  assert.equal((await matrix()).k, 8, "maximum zoom is clamped");
+  await page.mouse.wheel(0, 10000);
+  await page.waitForTimeout(50);
+  assert.deepEqual(await matrix(), { k: 1, x: 0, y: 0 }, "minimum zoom resets the camera");
+
+  await page.keyboard.down("Space");
+  await page.mouse.down();
+  await page.mouse.move(point.x + 80, point.y + 50, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  assert((await matrix()).x > 0, "Space-drag pans");
+  assert.equal(await page.getByRole("link", { name: "Ver no X" }).count(), 0, "panning does not select a person");
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).cursor), "grab", "drag ends cleanly");
+
+  await reset();
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(point.x + 140, point.y + 90, { steps: 4 });
+  await page.mouse.up({ button: "middle" });
+  assert((await matrix()).x > 0, "middle-button drag pans");
+  await reset();
+  await page.keyboard.down("Shift");
+  await page.mouse.wheel(0, 70);
+  await page.keyboard.up("Shift");
+  await page.waitForTimeout(50);
+  const shifted = await matrix();
+  assert.equal(shifted.k, 1, "Shift-wheel preserves zoom");
+  assert(shifted.x !== 0 || shifted.y !== 0, "Shift-wheel pans");
+
+  await reset();
+  await page.keyboard.press("+");
+  assert((await matrix()).k > 1, "keyboard zoom remains available");
+  await page.keyboard.press("ArrowRight");
+  assert((await matrix()).x < 0, "keyboard arrows pan");
+  await reset();
+  await page.getByRole("textbox", { name: "Outside input" }).fill("text");
+  await page.keyboard.press("Space");
+  assert.equal(await page.getByRole("textbox", { name: "Outside input" }).inputValue(), "text ", "Space remains available in text inputs");
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await page.mouse.move(1090, point.y + 40, { steps: 5 });
+  await page.mouse.up();
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).cursor), "grab", "releasing outside the canvas ends a drag");
+  await reset();
+  await svg.dispatchEvent("pointerdown", { pointerId: 11, pointerType: "touch", clientX: point.x, clientY: point.y, button: 0 });
+  await svg.dispatchEvent("pointerdown", { pointerId: 12, pointerType: "touch", clientX: point.x + 100, clientY: point.y, button: 0 });
+  await svg.dispatchEvent("pointermove", { pointerId: 12, pointerType: "touch", clientX: point.x + 150, clientY: point.y, buttons: 1 });
+  assert((await matrix()).k > 1, "two-pointer pinch still zooms");
+  await svg.dispatchEvent("pointercancel", { pointerId: 11 });
+  await svg.dispatchEvent("pointercancel", { pointerId: 12 });
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).cursor), "grab", "pointer cancellation clears dragging");
+  await reset();
+  await page.getByRole("button", { name: "Tela cheia", exact: true }).click();
+  await page.waitForFunction(() => Boolean(document.fullscreenElement));
+  assert.equal(await page.getByRole("button", { name: "Sair da tela cheia" }).getAttribute("aria-pressed"), "true");
+  assert(await svg.evaluate((el) => el.clientHeight > 600), "fullscreen canvas uses the available height");
+  const fullBounds = await svg.boundingBox();
+  const fullPoint = { x: Math.round(fullBounds.x + fullBounds.width * 0.6), y: Math.round(fullBounds.y + fullBounds.height * 0.4) };
+  const fullAnchor = await svg.evaluate((el, p) => new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM().inverse()).toJSON(), fullPoint);
+  await page.mouse.move(fullPoint.x, fullPoint.y);
+  await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(50);
+  const fullZoom = await matrix();
+  assert(Math.abs(fullZoom.x - fullAnchor.x * (1 - fullZoom.k)) < 0.1, "letterboxed fullscreen keeps the cursor anchor");
+  await page.getByRole("button", { name: "Sair da tela cheia" }).click();
+  await page.waitForFunction(() => !document.fullscreenElement);
+  assert.equal(await page.getByRole("button", { name: "Tela cheia", exact: true }).evaluate((el) => document.activeElement === el), true, "fullscreen restores focus");
+
+  await page.evaluate(() => { document.querySelector("[data-tour=bubble]").requestFullscreen = async () => { throw new Error("Denied for test"); }; });
+  await page.getByRole("button", { name: "Tela cheia", exact: true }).click();
+  const fullscreenAlert = page.getByRole("alert").filter({ hasText: "Não foi possível" });
+  await fullscreenAlert.waitFor();
+  assert.match(await fullscreenAlert.innerText(), /Não foi possível/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await reset();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "mobile layout does not overflow");
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).touchAction), "pan-y", "touch can scroll the page at rest");
+  await page.getByRole("button", { name: "Aumentar zoom" }).click();
+  assert.equal(await svg.evaluate((el) => getComputedStyle(el).touchAction), "none", "zoomed touch can pan the canvas");
+  console.log("Bubble controls: wheel anchors and limits, Space/middle/Shift pan, keyboard, fullscreen/error/focus, and mobile checks passed.");
+});

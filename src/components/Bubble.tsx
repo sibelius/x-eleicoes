@@ -68,6 +68,9 @@ export function Bubble({
   own?: boolean;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
+  const fullscreenButton = useRef<HTMLButtonElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const [space, setSpace] = useState(WIDE);
   const [layout, setLayout] = useState<SimNode[] | null>(null);
   const box = useMemo(() => {
@@ -108,6 +111,36 @@ export function Bubble({
     return () => ro.disconnect();
   }, []);
 
+  useEffect(() => {
+    const state = { wasActive: false };
+    const onFullscreenChange = (): void => {
+      const isActive = document.fullscreenElement === wrap.current;
+      setIsFullscreen(isActive);
+      if (state.wasActive && !isActive) fullscreenButton.current?.focus({ preventScroll: true });
+      state.wasActive = isActive;
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  async function toggleFullscreen(): Promise<void> {
+    setFullscreenError(null);
+    try {
+      if (document.fullscreenElement === wrap.current) {
+        await document.exitFullscreen();
+        return;
+      }
+      if (!wrap.current?.requestFullscreen) {
+        setFullscreenError("Este navegador não oferece tela cheia.");
+        return;
+      }
+      await wrap.current.requestFullscreen();
+    } catch (error) {
+      console.error("[bubble] fullscreen", error);
+      setFullscreenError("Não foi possível ativar a tela cheia. Tente novamente.");
+    }
+  }
+
   const visible = useMemo(
     () =>
       nodes.filter((n) => (filter === "members" ? n.member : filter === "mutual" ? n.following && n.follower : true)),
@@ -139,10 +172,13 @@ export function Bubble({
   }, [visible, space, me]);
 
   // Pan & zoom: one view transform (translate, then scale) in viewBox units, driven by drag, pinch,
-  // ctrl/⌘ + wheel (trackpad pinch), the +/− buttons, and tapping someone to focus on them.
+  // wheel/trackpad pinch, the +/− buttons, and tapping someone to focus on them.
   const svgRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState(HOME);
   const [dragging, setDragging] = useState(false);
+  const [isWheeling, setIsWheeling] = useState(false);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSpacePressed = useRef(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ travel: 0, moved: false, dist: 0 });
   const focused = selected ? layout?.find((d) => d.n?.id === selected.id) : undefined;
@@ -150,18 +186,20 @@ export function Bubble({
   const cy = box.y + box.h / 2;
 
   const toViewBox = useCallback(
-    (clientX: number, clientY: number) => {
-      const rect = svgRef.current!.getBoundingClientRect();
-      const s = box.w / rect.width;
-      return { x: box.x + (clientX - rect.left) * s, y: box.y + (clientY - rect.top) * s };
+    (clientX: number, clientY: number): { x: number; y: number } => {
+      // The SVG may be letterboxed in fullscreen; use its actual screen transform.
+      const matrix = svgRef.current?.getScreenCTM();
+      if (!matrix) return { x: cx, y: cy };
+      return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
     },
-    [box],
+    [cx, cy],
   );
 
   /** Zooms by `factor` keeping the viewBox point `p` under the finger/cursor. */
   const zoomAt = useCallback((p: { x: number; y: number }, factor: number) => {
     setView((v) => {
       const k = Math.min(MAX_ZOOM, Math.max(1, v.k * factor));
+      if (k === v.k) return v;
       if (k === 1) return HOME;
       const f = k / v.k;
       return { k, x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f };
@@ -171,26 +209,72 @@ export function Bubble({
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    // Plain wheel keeps scrolling the page; pinch on a trackpad (ctrlKey) or ctrl/⌘ + wheel zooms.
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+    const onWheel = (e: WheelEvent): void => {
       e.preventDefault();
-      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.005));
+      setIsWheeling(true);
+      if (wheelTimer.current) clearTimeout(wheelTimer.current);
+      wheelTimer.current = setTimeout(() => setIsWheeling(false), 150);
+      const unit = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? el.clientHeight : 1;
+      if (e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const start = toViewBox(0, 0);
+        const end = toViewBox(e.deltaX * unit, e.deltaY * unit);
+        setView((v) => ({ ...v, x: v.x - (end.x - start.x), y: v.y - (end.y - start.y) }));
+        return;
+      }
+      zoomAt(toViewBox(e.clientX, e.clientY), Math.exp(-e.deltaY * unit * 0.005));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (wheelTimer.current) clearTimeout(wheelTimer.current);
+    };
   }, [toViewBox, zoomAt]);
 
-  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const svg = svgRef.current;
+      if (e.code !== "Space" || !svg || (!svg.matches(":hover") && document.activeElement !== svg)) return;
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, button, a, [contenteditable]")) return;
+      e.preventDefault();
+      isSpacePressed.current = true;
+    };
+    const releaseSpace = (): void => { isSpacePressed.current = false; };
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (e.code === "Space") releaseSpace();
+    };
+    const onBlur = (): void => {
+      releaseSpace();
+      pointers.current.clear();
+      setDragging(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  function onPointerDown(e: React.PointerEvent<SVGSVGElement>): void {
+    if (e.button !== 0 && e.button !== 1) return;
+    e.currentTarget.focus({ preventScroll: true });
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) gesture.current = { travel: 0, moved: false, dist: 0 };
+    if (isSpacePressed.current || e.button === 1) {
+      e.preventDefault();
+      gesture.current.moved = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDragging(true);
+    }
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
     }
   }
 
-  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>): void {
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -213,13 +297,15 @@ export function Bubble({
       setDragging(true);
       e.currentTarget.setPointerCapture(e.pointerId);
     }
-    const s = box.w / e.currentTarget.getBoundingClientRect().width;
-    setView((v) => ({ ...v, x: v.x + dx * s, y: v.y + dy * s }));
+    const start = toViewBox(prev.x, prev.y);
+    const end = toViewBox(e.clientX, e.clientY);
+    setView((v) => ({ ...v, x: v.x + end.x - start.x, y: v.y + end.y - start.y }));
   }
 
-  function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+  function onPointerUp(e: React.PointerEvent<SVGSVGElement>): void {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size === 0) setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
   function reset() {
@@ -245,7 +331,7 @@ export function Bubble({
   }
 
   return (
-    <div ref={wrap} data-tour="bubble" className="rounded-2xl border border-line bg-card p-4">
+    <div ref={wrap} data-tour="bubble" className="bubble-card rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -260,21 +346,33 @@ export function Bubble({
             </a>
           )}
         </div>
-        <div data-tour="bubble-filters" className="flex gap-1 text-sm">
-          {filters.map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => {
-                setFilter(k);
-                reset();
-              }}
-              className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div data-tour="bubble-filters" className="flex gap-1 text-sm">
+            {filters.map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setFilter(k);
+                  reset();
+                }}
+                className={`rounded-full px-3 py-1 ${filter === k ? "bg-fg text-bg" : "bg-muted"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            ref={fullscreenButton}
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            aria-pressed={isFullscreen}
+            className="min-h-9 rounded-full border border-line px-3 py-1 text-sm hover:bg-muted"
+          >
+            {isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+          </button>
         </div>
       </div>
+      {fullscreenError && <p role="alert" className="mb-2 text-sm text-[var(--red)]">{fullscreenError}</p>}
       {live && live.watching > 0 && (
         <div className="mb-2">
           <LiveWatchers live={live} own={own} />
@@ -287,13 +385,13 @@ export function Bubble({
         {onlineHere > 0 && <Legend c="var(--accent)" label={`Online agora (${onlineHere})`} />}
         <span>Bolinhas pequenas = ainda não entraram no app</span>
       </div>
-      <div className="relative">
+      <div className="bubble-canvas relative">
         <svg
           ref={svgRef}
           viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
           className={`h-auto w-full overflow-hidden select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           // Zoomed in, a one-finger drag pans; at rest, vertical swipes still scroll the page.
-          style={{ touchAction: view.k > 1 ? "none" : "pan-y" }}
+          style={{ touchAction: isFullscreen || view.k > 1 ? "none" : "pan-y" }}
           role="img"
           aria-label={title}
           tabIndex={0}
@@ -310,6 +408,8 @@ export function Bubble({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onLostPointerCapture={onPointerUp}
+          onAuxClick={(e) => { if (e.button === 1) e.preventDefault(); }}
           onClick={(e) => e.target === e.currentTarget && !gesture.current.moved && reset()}
         >
           <defs>
@@ -338,7 +438,7 @@ export function Bubble({
             {SIDE.green}
           </text>
           <g
-            className={`bubble-zoom ${dragging ? "is-dragging" : ""}`}
+            className={`bubble-zoom ${dragging || isWheeling ? "is-dragging" : ""}`}
             style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
           >
             {layout?.map((d) => {
@@ -434,7 +534,7 @@ export function Bubble({
         </p>
       )}
       <p className="mt-1 text-xs text-subtle">
-        Arraste ou use as setas para mover, use a pinça ou os botões para zoom e toque em alguém para focar
+        Arraste, segure Espaço e arraste ou use as setas para mover. Use a roda do mouse, a pinça ou os botões para zoom e toque em alguém para focar
         {nodes.some((n) => n.member) ? "; toque de novo num membro para abrir a bolha dele" : ""}.
       </p>
       {selected && (
